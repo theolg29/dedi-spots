@@ -150,3 +150,10 @@ Convex agent skills for common tasks can be installed by running
 `npx convex ai-files install`.
 
 <!-- convex-ai-end -->
+
+---
+
+## Environnement de développement
+
+- **Plateforme de test** : Android physique via **Expo Go**
+- `expo-blur` / BlurView **ne fonctionne pas** sous Expo Go Android → ne pas utiliser pour des effets visuels critiques, privilégier des backgrounds semi-transparents (`rgba(...)`) comme fallback visible.

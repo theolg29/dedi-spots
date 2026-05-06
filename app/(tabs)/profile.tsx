@@ -46,7 +46,7 @@ function ProfileView() {
   const initial = viewer?.name?.charAt(0).toUpperCase() ?? "?";
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
       <View style={s.profileHero}>
         <View style={s.avatar}>
           <Text style={s.avatarLetter}>{initial}</Text>
@@ -93,7 +93,7 @@ export default function ProfileScreen() {
   const { isAuthenticated, isLoading } = useConvexAuth();
 
   return (
-    <SafeAreaView style={s.screen}>
+    <SafeAreaView edges={["top"]} style={s.screen}>
       <View style={s.header}>
         <Text style={s.title}>Profil</Text>
         {isAuthenticated && (

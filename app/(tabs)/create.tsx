@@ -4,7 +4,7 @@ import { Colors, Fonts } from "@/constants/theme";
 
 export default function CreateScreen() {
   return (
-    <SafeAreaView style={s.screen}>
+    <SafeAreaView edges={["top"]} style={s.screen}>
       <View style={s.header}>
         <Text style={s.title}>Nouveau spot</Text>
       </View>

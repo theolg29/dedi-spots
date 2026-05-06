@@ -55,7 +55,7 @@ export default function FeedScreen() {
   const seed = useMutation(api.seed.run);
 
   return (
-    <SafeAreaView style={s.screen}>
+    <SafeAreaView edges={["top"]} style={s.screen}>
       <View style={s.header}>
         <Text style={s.headerTitle}>Spots</Text>
       </View>
@@ -129,7 +129,7 @@ const s = StyleSheet.create({
   },
 
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 32 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
 
   centered: {
     alignItems: "center",
