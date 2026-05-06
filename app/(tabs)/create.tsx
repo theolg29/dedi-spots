@@ -2,15 +2,15 @@ import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors, Fonts } from "@/constants/theme";
 
-export default function MapScreen() {
+export default function CreateScreen() {
   return (
     <SafeAreaView style={s.screen}>
       <View style={s.header}>
-        <Text style={s.title}>Carte</Text>
+        <Text style={s.title}>Nouveau spot</Text>
       </View>
       <View style={s.body}>
-        <Text style={s.label}>Vue carte</Text>
-        <Text style={s.sub}>La carte interactive sera disponible ici.</Text>
+        <Text style={s.label}>Partage un lieu</Text>
+        <Text style={s.sub}>Le formulaire de création apparaîtra ici.</Text>
       </View>
     </SafeAreaView>
   );
