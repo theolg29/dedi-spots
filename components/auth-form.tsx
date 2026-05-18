@@ -1,5 +1,5 @@
 import { useAuthActions } from "@convex-dev/auth/react";
-import { Ionicons } from "@expo/vector-icons";
+import { Octicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -379,13 +379,13 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
 
   function renderUsernameIcon() {
     if (usernameStatus === "checking")
-      return <Ionicons name="time-outline" size={18} color={Colors.muted} />;
+      return <Octicons name="clock" size={18} color={Colors.muted} />;
     if (usernameStatus === "available")
       return (
-        <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
+        <Octicons name="check-circle" size={18} color={Colors.primary} />
       );
     if (usernameStatus === "taken" || usernameStatus === "invalid")
-      return <Ionicons name="close-circle" size={18} color="#D94F4F" />;
+      return <Octicons name="x-circle" size={18} color="#D94F4F" />;
     return null;
   }
 
@@ -463,7 +463,7 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
             ) : (
               <Text style={s.countryPlaceholder}>Sélectionne ton pays</Text>
             )}
-            <Ionicons name="chevron-down" size={16} color={Colors.muted} />
+            <Octicons name="chevron-down" size={16} color={Colors.muted} />
           </Pressable>
 
           <View style={s.inputWrapper}>
@@ -482,8 +482,8 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
               onPress={() => setShowPassword((v) => !v)}
               hitSlop={8}
             >
-              <Ionicons
-                name={showPassword ? "eye-off" : "eye"}
+              <Octicons
+                name={showPassword ? "eye-closed" : "eye"}
                 size={18}
                 color={Colors.muted}
               />
@@ -592,8 +592,8 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
               onPress={() => setShowPassword((v) => !v)}
               hitSlop={8}
             >
-              <Ionicons
-                name={showPassword ? "eye-off" : "eye"}
+              <Octicons
+                name={showPassword ? "eye-closed" : "eye"}
                 size={18}
                 color={Colors.muted}
               />
@@ -631,7 +631,7 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
       {mode === "forgot" && (
         <>
           <Pressable style={s.backBtn} onPress={() => switchMode("login")}>
-            <Ionicons name="arrow-back" size={18} color={Colors.muted} />
+            <Octicons name="arrow-left" size={18} color={Colors.muted} />
             <Text style={s.backBtnText}>Retour</Text>
           </Pressable>
 
@@ -698,8 +698,8 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
               onPress={() => setShowNewPassword((v) => !v)}
               hitSlop={8}
             >
-              <Ionicons
-                name={showNewPassword ? "eye-off" : "eye"}
+              <Octicons
+                name={showNewPassword ? "eye-closed" : "eye"}
                 size={18}
                 color={Colors.muted}
               />
@@ -727,7 +727,7 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
               s.primaryBtn,
               (loading || pressed) && { opacity: 0.75 },
             ]}
-            onPress={handleResetVerify}
+            onPress={() => void handleResetVerify()}
             disabled={loading}
           >
             <Text style={s.primaryBtnText}>
@@ -799,7 +799,7 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
           <View style={s.modalHeader}>
             <Text style={s.modalTitle}>Sélectionne ton pays</Text>
             <Pressable onPress={() => setShowCountryModal(false)} hitSlop={16}>
-              <Ionicons name="close" size={22} color={Colors.text} />
+              <Octicons name="x" size={22} color={Colors.text} />
             </Pressable>
           </View>
 
@@ -833,8 +833,8 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
                 <Text style={s.countryItemFlag}>{item.flag}</Text>
                 <Text style={s.countryItemName}>{item.name}</Text>
                 {country?.code === item.code && (
-                  <Ionicons
-                    name="checkmark"
+                  <Octicons
+                    name="check"
                     size={18}
                     color={Colors.primary}
                     style={{ marginLeft: "auto" }}

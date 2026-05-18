@@ -1,0 +1,205 @@
+import { useQuery } from "convex/react";
+import { Image } from "expo-image";
+import { router, useLocalSearchParams } from "expo-router";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Octicons } from "@expo/vector-icons";
+
+import { api } from "@/convex/_generated/api";
+import { Doc } from "@/convex/_generated/dataModel";
+import { Colors, Fonts } from "@/constants/theme";
+import { AppHeader } from "@/components/AppHeader";
+import { CATEGORIES } from "../(tabs)/index";
+
+type SpotCard = Doc<"spots"> & { avgRating: number; reviewCount: number };
+
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <View style={s.starRow}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Text key={i} style={[s.star, { color: i <= Math.round(rating) ? Colors.accent : "#E0DDD8" }]}>
+          ★
+        </Text>
+      ))}
+      <Text style={s.ratingNum}>{rating > 0 ? rating.toFixed(1) : "—"}</Text>
+    </View>
+  );
+}
+
+export default function CategoryScreen() {
+  const { tag } = useLocalSearchParams<{ tag: string }>();
+  const decodedTag = decodeURIComponent(tag ?? "");
+  const spots = useQuery(api.spots.list);
+
+  const cat = CATEGORIES.find((c) => c.label === decodedTag);
+  const filtered = spots?.filter((spot) => spot.tags.includes(decodedTag)) ?? [];
+
+  return (
+    <SafeAreaView edges={["top"]} style={s.screen}>
+      <AppHeader showBack />
+
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+        {/* Titre de la catégorie */}
+        <View style={s.catHeader}>
+          {cat && (
+            <View style={[s.catIconWrap, { backgroundColor: cat.bg }]}>
+              <Octicons name={cat.icon} size={20} color={cat.color} />
+            </View>
+          )}
+          <View>
+            <Text style={s.catTitle}>{decodedTag}</Text>
+            {spots !== undefined && (
+              <Text style={s.count}>
+                {filtered.length} spot{filtered.length !== 1 ? "s" : ""}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {spots === undefined && (
+          <View style={s.centered}>
+            <Text style={s.mutedText}>Chargement…</Text>
+          </View>
+        )}
+
+        {spots !== undefined && filtered.length === 0 && (
+          <View style={s.centered}>
+            <Octicons name="inbox" size={40} color={Colors.border} />
+            <Text style={s.emptyTitle}>Aucun spot ici</Text>
+            <Text style={[s.mutedText, { textAlign: "center" }]}>
+              Sois le premier à partager un spot "{decodedTag}".
+            </Text>
+            <Pressable style={s.createBtn} onPress={() => router.push("/(tabs)/create")}>
+              <Octicons name="plus" size={14} color="#fff" />
+              <Text style={s.createBtnText}>Créer un spot</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {filtered.map((spot) => (
+          <Pressable
+            key={spot._id}
+            style={({ pressed }) => [s.card, pressed && { opacity: 0.96 }]}
+            onPress={() => router.push(`/spot/${spot._id}`)}
+          >
+            <Image source={{ uri: spot.photos[0] }} style={s.cardImage} contentFit="cover" />
+            <View style={s.cardBody}>
+              <View style={s.tagsRow}>
+                {spot.tags.slice(0, 3).map((t) => (
+                  <View key={t} style={s.tag}>
+                    <Text style={s.tagText}>{t}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={s.cardTitle} numberOfLines={2}>{spot.title}</Text>
+              <View style={s.cardFooter}>
+                <StarRating rating={(spot as SpotCard).avgRating} />
+                <Text style={s.reviewCount}>{(spot as SpotCard).reviewCount} avis</Text>
+              </View>
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: Colors.background },
+
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 110,
+  },
+
+  catHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 20,
+  },
+  catIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  catTitle: {
+    fontSize: 20,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  count: {
+    fontSize: 13,
+    fontFamily: Fonts.body,
+    color: Colors.muted,
+    marginTop: 1,
+  },
+
+  centered: {
+    alignItems: "center",
+    paddingTop: 60,
+    gap: 12,
+  },
+  mutedText: {
+    color: Colors.muted,
+    fontSize: 14,
+    fontFamily: Fonts.body,
+    lineHeight: 21,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+  },
+  createBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  createBtnText: {
+    color: "#fff",
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 14,
+  },
+
+  card: {
+    borderRadius: 14,
+    overflow: "hidden",
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.card,
+  },
+  cardImage: { width: "100%", height: 210 },
+  cardBody: { padding: 14 },
+  tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 9 },
+  tag: {
+    backgroundColor: Colors.tagBg,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  tagText: { color: Colors.tagText, fontSize: 11, fontFamily: Fonts.bodyMedium },
+  cardTitle: {
+    fontSize: 17,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    marginBottom: 9,
+    lineHeight: 22,
+    letterSpacing: -0.2,
+  },
+  cardFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  starRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+  star: { fontSize: 12 },
+  ratingNum: { color: Colors.muted, fontSize: 13, fontFamily: Fonts.bodyMedium, marginLeft: 5 },
+  reviewCount: { color: Colors.muted, fontSize: 13, fontFamily: Fonts.body },
+});

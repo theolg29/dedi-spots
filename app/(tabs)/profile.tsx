@@ -1,9 +1,13 @@
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { Octicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
+import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -42,15 +46,69 @@ function GuestView() {
 function ProfileView() {
   const { signOut } = useAuthActions();
   const viewer = useQuery(api.users.viewer);
+  const myProfile = useQuery(api.users.getMyProfile);
+  const generateUploadUrl = useMutation(api.users.generateUploadUrl);
+  const updateAvatar = useMutation(api.users.updateAvatar);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const initial = viewer?.name?.charAt(0).toUpperCase() ?? "?";
+  const avatarUrl = myProfile?.avatarUrl ?? viewer?.image ?? null;
+
+  const handlePickAvatar = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission requise", "Autorise l'accès à ta galerie dans les réglages.");
+      return;
+    }
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (picked.canceled || !picked.assets[0]) return;
+    const asset = picked.assets[0];
+    setUploadingAvatar(true);
+    try {
+      const uploadUrl = await generateUploadUrl();
+      const fileResponse = await fetch(asset.uri);
+      const blob = await fileResponse.blob();
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": asset.mimeType ?? "image/jpeg" },
+        body: blob,
+      });
+      const { storageId } = await uploadResponse.json();
+      await updateAvatar({ storageId });
+    } catch {
+      Alert.alert("Erreur", "Impossible de mettre à jour la photo.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
       <View style={s.profileHero}>
-        <View style={s.avatar}>
-          <Text style={s.avatarLetter}>{initial}</Text>
-        </View>
+        <Pressable
+          onPress={() => void handlePickAvatar()}
+          style={({ pressed }) => [s.avatarWrap, pressed && { opacity: 0.75 }]}
+        >
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={s.avatar} contentFit="cover" />
+          ) : (
+            <View style={s.avatar}>
+              <Text style={s.avatarLetter}>{initial}</Text>
+            </View>
+          )}
+          <View style={s.avatarBadge}>
+            {uploadingAvatar ? (
+              <Octicons name="hourglass" size={13} color="#fff" />
+            ) : (
+              <Octicons name="device-camera" size={13} color="#fff" />
+            )}
+          </View>
+        </Pressable>
         <Text style={s.profileName}>{viewer?.name ?? "—"}</Text>
         {viewer?.email ? <Text style={s.profileEmail}>{viewer.email}</Text> : null}
       </View>
@@ -154,6 +212,11 @@ const s = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 28,
   },
+  avatarWrap: {
+    position: "relative",
+    marginBottom: 16,
+    alignSelf: "flex-start",
+  },
   avatar: {
     width: 80,
     height: 80,
@@ -161,7 +224,20 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    overflow: "hidden",
+  },
+  avatarBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: Colors.background,
   },
   avatarLetter: {
     fontSize: 30,

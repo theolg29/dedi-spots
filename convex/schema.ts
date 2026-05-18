@@ -42,10 +42,11 @@ export default defineSchema({
 
   userProfiles: defineTable({
     userId: v.id("users"),
-    username: v.string(),
-    firstName: v.string(),
-    lastName: v.string(),
-    country: v.string(),
+    username: v.optional(v.string()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    country: v.optional(v.string()),
+    avatarStorageId: v.optional(v.id("_storage")),
   })
     .index("by_user", ["userId"])
     .index("by_username", ["username"]),

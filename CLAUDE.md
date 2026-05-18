@@ -27,27 +27,34 @@
 ```
 spots/
 ├── app/
-│   ├── _layout.tsx          # Root layout — ConvexAuthProvider + SecureStore
-│   ├── onboarding.tsx       # Slides d'onboarding + formulaire auth
+│   ├── _layout.tsx              # Root layout — ConvexAuthProvider + SecureStore + Stack
+│   ├── onboarding.tsx           # Slides d'onboarding + formulaire auth
+│   ├── search.tsx               # Page de recherche (spots, tags)
+│   ├── category/[tag].tsx       # Spots filtrés par catégorie (Stack screen)
 │   ├── (tabs)/
-│   │   ├── _layout.tsx      # Tab bar
-│   │   ├── index.tsx        # Feed / accueil
-│   │   ├── explore.tsx      # Vue carte
-│   │   ├── create.tsx       # Créer un spot
-│   │   └── profile.tsx      # Profil — useConvexAuth + useAuthActions
-│   └── spot/[id].tsx        # Détail d'un spot
+│   │   ├── _layout.tsx          # Tab bar (5 onglets + écrans cachés)
+│   │   ├── index.tsx            # Feed / accueil — hero vert, catégories, spots
+│   │   ├── explore.tsx          # Vue carte
+│   │   ├── create.tsx           # Créer un spot
+│   │   ├── favorites.tsx        # Favoris
+│   │   ├── profile.tsx          # Profil
+│   │   └── categories.tsx       # Toutes les catégories (tab caché, navbar visible)
+│   └── spot/[id].tsx            # Détail d'un spot
 ├── components/
-│   ├── auth-form.tsx        # Formulaire auth réutilisable (signup/login + Google)
-│   └── ui/                  # Composants UI génériques
+│   ├── AppHeader.tsx            # Header vert réutilisable (Spots + cloche + search bar)
+│   ├── auth-form.tsx            # Formulaire auth réutilisable (signup/login + Google)
+│   ├── LocationPickerModal.tsx  # Sélecteur de position (carte native)
+│   ├── LocationPickerModal.web.tsx  # Stub web (react-native-maps natif uniquement)
+│   └── ui/                      # Composants UI génériques
 ├── convex/
-│   ├── schema.ts            # Schéma — ...authTables + spots/reviews/favorites
-│   ├── auth.ts              # Config @convex-dev/auth (Password + Google)
-│   ├── http.ts              # auth.addHttpRoutes(http)
-│   ├── convex.config.ts     # defineApp() vide
-│   ├── users.ts             # query viewer — getAuthUserId
-│   └── spots.ts             # Queries/mutations spots
+│   ├── schema.ts                # Schéma — ...authTables + spots/reviews/favorites
+│   ├── auth.ts                  # Config @convex-dev/auth (Password + Google)
+│   ├── http.ts                  # auth.addHttpRoutes(http)
+│   ├── convex.config.ts         # defineApp() vide
+│   ├── users.ts                 # getMyProfile, viewer, updateProfile, updateAvatar
+│   └── spots.ts                 # Queries/mutations spots
 └── constants/
-    └── theme.ts             # Couleurs et typographie
+    └── theme.ts                 # Couleurs (Colors) et typographie (Fonts)
 ```
 
 ---
@@ -58,17 +65,30 @@ spots/
 
 | Token | Valeur | Usage |
 |---|---|---|
-| `primary` | `#4A7C59` | Vert forêt — CTA, accents |
+| `primary` | `#1F5C3A` | Vert forêt profond — CTA, hero, accents |
 | `accent` | `#F4845F` | Orange coucher de soleil — étoiles, badges |
-| `background` | `#F8F7F2` | Blanc cassé — fond global |
+| `background` | `#FFFFFF` | Blanc pur — fond global |
+| `surface` | `#F4F4F4` | Gris clair — inputs, surfaces secondaires |
 | `card` | `#FFFFFF` | Blanc pur — cartes |
-| `text` | `#1A1A1A` | Texte principal |
-| `muted` | `#8A8A8A` | Texte secondaire |
-| `border` | `#E8E6E1` | Séparateurs, contours |
-| `tagBg` | `#EDF3EF` | Fond des tags |
-| `tagText` | `#4A7C59` | Texte des tags |
+| `text` | `#111111` | Texte principal |
+| `textSecondary` | `#666666` | Texte secondaire |
+| `muted` | `#999999` | Placeholders, hints |
+| `border` | `#EBEBEB` | Séparateurs, contours |
+| `tagBg` | `#E6EFE9` | Fond des tags (6% primary sur blanc) |
+| `tagText` | `#1F5C3A` | Texte des tags |
 
-**Typographie cible** : Gabarito (titres) + DM Sans (textes). Fonts non encore installées.
+**Constantes locales** (dans les fichiers composants) :
+- Cards catégories : `bg #EFF5F1`, `border #DCE9E1` (5% primary tint)
+
+**Typographie installée** : Parkinsans (titres, `Fonts.heading*`) + DM Sans (textes, `Fonts.body*`).
+
+**Header global** : composant `components/AppHeader.tsx` — hero vert `#1F5C3A` avec titre "Spots", cloche, avatar et search bar blanche. Utilisé sur toutes les pages hors onboarding.
+
+**StatusBar** : `style="light"` (icônes blanches sur fond vert).
+
+**Règles de couleur** :
+- Toujours utiliser `Colors.primary` (`#1F5C3A`) — ne jamais hardcoder l'ancienne valeur `#4A7C59`
+- Le hero/header prend toute la largeur, arrondi uniquement en bas (24–28px)
 
 ---
 
@@ -134,6 +154,7 @@ favorites  { userId, spotId, isPrivate,
 - Toujours lire `convex/_generated/ai/guidelines.md` avant d'écrire du code Convex.
 - Zéro coût d'infrastructure : rester sur les free tiers (Convex, Google Maps mobile).
 - Pas de modération de contenu prévue pour le MVP.
+- **Icônes** : utiliser uniquement `Octicons` de `@expo/vector-icons` (`import { Octicons } from "@expo/vector-icons"`). Ne pas utiliser Ionicons, MaterialIcons ou d'autres sets. Si une icône manque dans Octicons, chercher l'équivalent le plus proche dans ce set.
 
 ---
 

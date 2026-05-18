@@ -61,12 +61,14 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <InitialRedirect />
         <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-          <Stack.Screen name="spot/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
-          <Stack.Screen name="settings" options={{ headerShown: false, animation: "slide_from_right" }} />
+          <Stack.Screen name="(tabs)"         options={{ headerShown: false }} />
+          <Stack.Screen name="onboarding"     options={{ headerShown: false }} />
+          <Stack.Screen name="spot/[id]"      options={{ headerShown: false, animation: "slide_from_right" }} />
+          <Stack.Screen name="settings"       options={{ headerShown: false, animation: "slide_from_right" }} />
+          <Stack.Screen name="category/[tag]" options={{ headerShown: false, animation: "slide_from_right" }} />
+          <Stack.Screen name="search"         options={{ headerShown: false, animation: "fade" }} />
         </Stack>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
       </SafeAreaProvider>
     </ConvexAuthProvider>
   );

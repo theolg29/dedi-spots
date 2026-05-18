@@ -13,7 +13,11 @@ export const getMyProfile = query({
       .query("userProfiles")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
-    return { user, profile };
+    let avatarUrl: string | null = null;
+    if (profile?.avatarStorageId) {
+      avatarUrl = await ctx.storage.getUrl(profile.avatarStorageId);
+    }
+    return { user, profile, avatarUrl };
   },
 });
 
@@ -137,6 +141,37 @@ export const viewer = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
     return await ctx.db.get(userId);
+  },
+});
+
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Non authentifié");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const updateAvatar = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Non authentifié");
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    if (profile) {
+      if (profile.avatarStorageId) {
+        await ctx.storage.delete(profile.avatarStorageId);
+      }
+      await ctx.db.patch(profile._id, { avatarStorageId: storageId });
+    } else {
+      await ctx.db.insert("userProfiles", { userId, avatarStorageId: storageId });
+    }
   },
 });
 

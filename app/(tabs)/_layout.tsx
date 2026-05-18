@@ -21,7 +21,7 @@ function TabButton(props: BottomTabBarButtonProps) {
 
   return (
     <Pressable
-      {...props}
+      {...(props as any)}
       android_ripple={null}
       onPressIn={(e) => { show(); props.onPressIn?.(e); }}
       onPressOut={(e) => { hide(); props.onPressOut?.(e); }}
@@ -65,11 +65,13 @@ export default function TabLayout() {
         },
       })}
     >
-      <Tabs.Screen name="index"     options={{ title: "Feed" }} />
-      <Tabs.Screen name="explore"   options={{ title: "Carte" }} />
-      <Tabs.Screen name="create"    options={{ title: "Créer" }} />
-      <Tabs.Screen name="favorites" options={{ title: "Favoris" }} />
-      <Tabs.Screen name="profile"   options={{ title: "Profil" }} />
+      <Tabs.Screen name="index"      options={{ title: "Feed" }} />
+      <Tabs.Screen name="explore"    options={{ title: "Carte" }} />
+      <Tabs.Screen name="create"     options={{ title: "Créer" }} />
+      <Tabs.Screen name="favorites"  options={{ title: "Favoris" }} />
+      <Tabs.Screen name="profile"    options={{ title: "Profil" }} />
+      {/* Screens cachés de la tab bar mais gardent la navbar */}
+      <Tabs.Screen name="categories" options={{ href: null }} />
     </Tabs>
   );
 }

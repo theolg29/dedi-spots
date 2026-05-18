@@ -1,6 +1,9 @@
 import { useAuthActions } from "@convex-dev/auth/react";
+import * as SecureStore from "expo-secure-store";
 import { useMutation, useQuery } from "convex/react";
-import { Ionicons, Octicons } from "@expo/vector-icons";
+import { Octicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -38,9 +41,12 @@ export default function SettingsScreen() {
   const myProfile = useQuery(api.users.getMyProfile);
   const updateProfile = useMutation(api.users.updateProfile);
   const deleteAccount = useMutation(api.users.deleteAccount);
+  const generateUploadUrl = useMutation(api.users.generateUploadUrl);
+  const updateAvatar = useMutation(api.users.updateAvatar);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [form, setForm] = useState<Form>({
     firstName: "",
     lastName: "",
@@ -51,20 +57,37 @@ export default function SettingsScreen() {
 
   const profile = myProfile?.profile;
   const initial = viewer?.name?.charAt(0).toUpperCase() ?? "?";
+  const avatarUrl = myProfile?.avatarUrl ?? viewer?.image ?? null;
   const originalUsername = profile?.username ?? "";
 
-  // Sync form when profile loads
+  // Sync form when profile or viewer loads
   useEffect(() => {
     if (profile) {
       setForm({
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        username: profile.username,
-        country: profile.country,
+        firstName: profile.firstName ?? "",
+        lastName: profile.lastName ?? "",
+        username: profile.username ?? "",
+        country: profile.country ?? "",
       });
-      setDebouncedUsername(profile.username);
+      setDebouncedUsername(profile.username ?? "");
+    } else if (myProfile && !profile && viewer) {
+      // No profile record yet (e.g. Google sign-in) — prefill from auth user
+      const parts = (viewer.name ?? "").split(" ");
+      setForm({
+        firstName: parts[0] ?? "",
+        lastName: parts.slice(1).join(" ") ?? "",
+        username: "",
+        country: "",
+      });
     }
-  }, [profile]);
+  }, [
+    profile?.firstName,
+    profile?.lastName,
+    profile?.username,
+    profile?.country,
+    myProfile,
+    viewer,
+  ]);
 
   // Debounce username input
   useEffect(() => {
@@ -103,15 +126,51 @@ export default function SettingsScreen() {
     form.lastName.trim().length > 0 &&
     (usernameStatus === "available" || usernameStatus === "idle");
 
+  const handlePickAvatar = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission requise", "Autorise l'accès à ta galerie dans les réglages.");
+      return;
+    }
+
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (picked.canceled || !picked.assets[0]) return;
+
+    const asset = picked.assets[0];
+    setUploadingAvatar(true);
+    try {
+      const uploadUrl = await generateUploadUrl();
+      const fileResponse = await fetch(asset.uri);
+      const blob = await fileResponse.blob();
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": asset.mimeType ?? "image/jpeg" },
+        body: blob,
+      });
+      const { storageId } = await uploadResponse.json();
+      await updateAvatar({ storageId });
+    } catch {
+      Alert.alert("Erreur", "Impossible de mettre à jour la photo.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleCancel = () => {
     if (profile) {
       setForm({
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        username: profile.username,
-        country: profile.country,
+        firstName: profile.firstName ?? "",
+        lastName: profile.lastName ?? "",
+        username: profile.username ?? "",
+        country: profile.country ?? "",
       });
-      setDebouncedUsername(profile.username);
+      setDebouncedUsername(profile.username ?? "");
     }
     setEditing(false);
   };
@@ -218,9 +277,27 @@ export default function SettingsScreen() {
         >
           {/* Avatar + identity */}
           <View style={s.avatarRow}>
-            <View style={s.avatar}>
-              <Text style={s.avatarLetter}>{initial}</Text>
-            </View>
+            <Pressable
+              onPress={() => { if (editing) void handlePickAvatar(); }}
+              style={({ pressed }) => [s.avatarWrap, pressed && editing && { opacity: 0.75 }]}
+            >
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={s.avatar} contentFit="cover" />
+              ) : (
+                <View style={s.avatar}>
+                  <Text style={s.avatarLetter}>{initial}</Text>
+                </View>
+              )}
+              {editing && (
+                <View style={s.avatarEditOverlay}>
+                  {uploadingAvatar ? (
+                    <Octicons name="hourglass" size={18} color="#fff" />
+                  ) : (
+                    <Octicons name="pencil" size={18} color="#fff" />
+                  )}
+                </View>
+              )}
+            </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={s.heroName}>{viewer?.name ?? "—"}</Text>
               {viewer?.email ? (
@@ -270,22 +347,14 @@ export default function SettingsScreen() {
                   />
                   <View style={{ marginLeft: 6 }}>
                     {usernameStatus === "checking" && (
-                      <Ionicons name="time-outline" size={17} color={Colors.muted} />
+                      <Octicons name="clock" size={17} color={Colors.muted} />
                     )}
                     {usernameStatus === "available" && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={17}
-                        color={Colors.primary}
-                      />
+                      <Octicons name="check-circle" size={17} color={Colors.primary} />
                     )}
                     {(usernameStatus === "taken" ||
                       usernameStatus === "invalid") && (
-                      <Ionicons
-                        name="close-circle"
-                        size={17}
-                        color="#D94F4F"
-                      />
+                      <Octicons name="x-circle" size={17} color="#D94F4F" />
                     )}
                   </View>
                 </View>
@@ -324,6 +393,18 @@ export default function SettingsScreen() {
           {/* Compte */}
           <Text style={s.sectionTitle}>Compte</Text>
           <View style={s.card}>
+            <Pressable
+              style={({ pressed }) => [s.row, pressed && { opacity: 0.55 }]}
+              onPress={() => {
+                void SecureStore.deleteItemAsync("onboarded").then(() =>
+                  router.replace("/onboarding")
+                );
+              }}
+            >
+              <Text style={s.rowLabel}>Revoir l'introduction</Text>
+              <Octicons name="chevron-right" size={15} color={Colors.muted} />
+            </Pressable>
+            <View style={s.rowSep} />
             <Pressable
               style={({ pressed }) => [s.row, pressed && { opacity: 0.55 }]}
               onPress={handleSignOut}
@@ -419,6 +500,9 @@ const s = StyleSheet.create({
     paddingVertical: 20,
     marginBottom: 4,
   },
+  avatarWrap: {
+    position: "relative",
+  },
   avatar: {
     width: 64,
     height: 64,
@@ -426,11 +510,19 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   avatarLetter: {
     fontSize: 26,
     color: "#fff",
     fontFamily: Fonts.headingBold,
+  },
+  avatarEditOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 32,
+    backgroundColor: "rgba(0,0,0,0.38)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   heroName: {
     fontSize: 18,

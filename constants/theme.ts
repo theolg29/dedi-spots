@@ -1,6 +1,6 @@
 export const Colors = {
-  primary: "#4A7C59",
-  accent: "#F4845F",
+  primary: "#1F5C3A",      // vert forêt profond (plus sombre)
+  accent: "#F4845F",       // orange coucher de soleil
   background: "#FFFFFF",
   surface: "#F4F4F4",
   card: "#FFFFFF",
@@ -8,24 +8,24 @@ export const Colors = {
   textSecondary: "#666666",
   muted: "#999999",
   border: "#EBEBEB",
-  tagBg: "#EEF4F0",
-  tagText: "#3D6B4A",
+  tagBg: "#E6EFE9",        // 6% primary sur blanc
+  tagText: "#1F5C3A",      // aligné sur primary
 
   light: {
     text: "#111111",
     background: "#FFFFFF",
-    tint: "#4A7C59",
+    tint: "#1F5C3A",
     icon: "#999999",
     tabIconDefault: "#999999",
-    tabIconSelected: "#4A7C59",
+    tabIconSelected: "#1F5C3A",
   },
   dark: {
     text: "#F0EFEB",
     background: "#151714",
-    tint: "#6BA87A",
+    tint: "#4E8F63",
     icon: "#9BA1A6",
     tabIconDefault: "#9BA1A6",
-    tabIconSelected: "#6BA87A",
+    tabIconSelected: "#4E8F63",
   },
 };
 
