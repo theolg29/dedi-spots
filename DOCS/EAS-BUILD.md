@@ -5,7 +5,7 @@
 EAS Build = compiler l'app sur les serveurs d'Expo, pas en local.  
 Utile quand tu n'as pas assez de place ou de RAM pour compiler Android localement.
 
-**Free tier : 30 builds/mois** — à ne pas gaspiller, tester d'abord sur Expo Go.
+**Free tier : 15 builds Android + 15 builds iOS par mois** — à ne pas gaspiller, tester d'abord sur Expo Go.
 
 ---
 
@@ -72,6 +72,7 @@ Pour une release prod :
 
 ## Checklist avant un build
 
+- [ ] `npx expo export` → vérifie que le bundle compile sans erreur (TypeScript + bundler) **avant** de lancer un build EAS, pour ne pas griller un crédit sur un bug basique
 - [ ] `npx expo install --check` → vérifier qu'aucun package est hors version
 - [ ] Variables dans `eas.json` à jour
 - [ ] `npx convex dev` tourne (backend accessible)

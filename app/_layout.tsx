@@ -13,11 +13,13 @@ import {
   Parkinsans_800ExtraBold,
 } from "@expo-google-fonts/parkinsans";
 import { useFonts } from "expo-font";
+import * as NavigationBar from "expo-navigation-bar";
 import { router, Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect } from "react";
+import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
 
@@ -53,6 +55,13 @@ export default function RootLayout() {
     DMSans_600SemiBold,
     DMSans_700Bold,
   });
+
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      NavigationBar.setBackgroundColorAsync("transparent");
+      NavigationBar.setButtonStyleAsync("dark");
+    }
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 
