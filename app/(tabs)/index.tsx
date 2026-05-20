@@ -7,8 +7,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
 
 import { api } from "@/convex/_generated/api";
-import { Doc } from "@/convex/_generated/dataModel";
+import { Doc, Id } from "@/convex/_generated/dataModel";
 import { Colors, Fonts } from "@/constants/theme";
+import { AddToFavoritesSheet } from "@/components/AddToFavoritesSheet";
 
 type SpotCard = Doc<"spots"> & { avgRating: number; reviewCount: number };
 
@@ -48,13 +49,34 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-function SpotCard({ spot }: { spot: SpotCard }) {
+function SpotCard({
+  spot,
+  isFavorited,
+  onFavoritePress,
+}: {
+  spot: SpotCard;
+  isFavorited: boolean;
+  onFavoritePress: () => void;
+}) {
   return (
     <Pressable
       style={({ pressed }) => [s.card, pressed && { opacity: 0.96 }]}
       onPress={() => router.push(`/spot/${spot._id}`)}
     >
-      <Image source={{ uri: spot.photos[0] }} style={s.cardImage} contentFit="cover" />
+      <View>
+        <Image source={{ uri: spot.photos[0] }} style={s.cardImage} contentFit="cover" />
+        <Pressable
+          style={s.heartBtn}
+          onPress={() => onFavoritePress()}
+          hitSlop={8}
+        >
+          <Octicons
+            name={isFavorited ? "heart-fill" : "heart"}
+            size={18}
+            color={isFavorited ? Colors.accent : Colors.textSecondary}
+          />
+        </Pressable>
+      </View>
       <View style={s.cardBody}>
         <View style={s.tagsRow}>
           {spot.tags.slice(0, 3).map((tag) => (
@@ -72,6 +94,8 @@ function SpotCard({ spot }: { spot: SpotCard }) {
     </Pressable>
   );
 }
+
+
 
 function CategoryCard({ cat }: { cat: typeof CATEGORIES[number] }) {
   return (
@@ -91,8 +115,21 @@ function CategoryCard({ cat }: { cat: typeof CATEGORIES[number] }) {
 export default function FeedScreen() {
   const spots = useQuery(api.spots.list);
   const myProfile = useQuery(api.users.getMyProfile);
+  const favoritedIds = useQuery(api.favorites.getFavoritedIds);
   const seed = useMutation(api.seed.run);
+  const removeFav = useMutation(api.favorites.remove);
   const [refreshing, setRefreshing] = useState(false);
+  const [sheetSpotId, setSheetSpotId] = useState<Id<"spots"> | null>(null);
+
+  const favSet = new Set((favoritedIds ?? []).map(String));
+
+  const handleFavoritePress = (spotId: Id<"spots">) => {
+    if (favSet.has(String(spotId))) {
+      removeFav({ spotId });
+    } else {
+      setSheetSpotId(spotId);
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -102,6 +139,32 @@ export default function FeedScreen() {
 
   return (
     <SafeAreaView edges={["top"]} style={s.screen}>
+      {/* ── Sticky header ── */}
+      <View style={s.stickyHeader}>
+        <View style={s.heroHeader}>
+          <Text style={s.headerTitle}>Spots</Text>
+          <View style={s.headerRight}>
+            <Pressable style={s.iconBtn} onPress={() => router.push("/modal")}>
+              <Octicons name="bell" size={18} color="#fff" />
+            </Pressable>
+            <Pressable
+              style={s.avatarBtn}
+              onPress={() => router.push("/(tabs)/profile")}
+            >
+              {myProfile?.avatarUrl ? (
+                <Image source={{ uri: myProfile.avatarUrl }} style={s.avatar} contentFit="cover" />
+              ) : (
+                <Octicons name="person" size={18} color="rgba(255,255,255,0.85)" />
+              )}
+            </Pressable>
+          </View>
+        </View>
+        <Pressable style={s.searchBar} onPress={() => router.push("/search")}>
+          <Octicons name="search" size={15} color={Colors.muted} />
+          <Text style={s.searchPlaceholder}>Rechercher un lieu…</Text>
+        </Pressable>
+      </View>
+
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
@@ -115,35 +178,8 @@ export default function FeedScreen() {
           />
         }
       >
-        {/* Hero — plein écran, header dedans */}
-        <View style={s.hero}>
-          {/* Header */}
-          <View style={s.heroHeader}>
-            <Text style={s.headerTitle}>Spots</Text>
-            <View style={s.headerRight}>
-              <Pressable style={s.iconBtn} onPress={() => router.push("/modal")}>
-                <Octicons name="bell" size={18} color="#fff" />
-              </Pressable>
-              <Pressable
-                style={s.avatarBtn}
-                onPress={() => router.push("/(tabs)/profile")}
-              >
-                {myProfile?.avatarUrl ? (
-                  <Image source={{ uri: myProfile.avatarUrl }} style={s.avatar} contentFit="cover" />
-                ) : (
-                  <Octicons name="person" size={18} color="rgba(255,255,255,0.85)" />
-                )}
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Search bar blanche */}
-          <Pressable style={s.searchBar} onPress={() => router.push("/search")}>
-            <Octicons name="search" size={15} color={Colors.muted} />
-            <Text style={s.searchPlaceholder}>Rechercher un lieu…</Text>
-          </Pressable>
-
-          {/* Banner */}
+        {/* Hero banner — défile */}
+        <View style={s.heroBannerWrap}>
           <View style={s.heroBanner}>
             <View style={s.heroTextCol}>
               <Text style={s.heroTitle}>Découvrez{"\n"}des lieux{"\n"}uniques.</Text>
@@ -211,30 +247,48 @@ export default function FeedScreen() {
               </Pressable>
             </View>
           )}
-          {spots?.map((spot) => <SpotCard key={spot._id} spot={spot} />)}
+          {spots?.map((spot) => (
+            <SpotCard
+              key={spot._id}
+              spot={spot}
+              isFavorited={favSet.has(String(spot._id))}
+              onFavoritePress={() => handleFavoritePress(spot._id)}
+            />
+          ))}
         </View>
       </ScrollView>
+
+      <AddToFavoritesSheet
+        visible={sheetSpotId !== null}
+        spotId={sheetSpotId}
+        onClose={() => setSheetSpotId(null)}
+      />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  // screen bg = primary pour que la status bar area soit verte comme le hero
   screen: { flex: 1, backgroundColor: Colors.primary },
   scroll: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { paddingBottom: 110 },
 
-  // ─── Hero ───────────────────────────────────────────────
-  hero: {
+  // ─── Sticky header ──────────────────────────────────────
+  stickyHeader: {
     backgroundColor: Colors.primary,
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 24,
+    paddingBottom: 14,
     gap: 14,
-    // Arrondi uniquement en bas
+  },
+
+  // ─── Hero banner (défile) ────────────────────────────────
+  heroBannerWrap: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 24,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
-    // on repasse en white le bg du scroll juste sous le hero
     marginBottom: 24,
   },
 
@@ -443,6 +497,17 @@ const s = StyleSheet.create({
     backgroundColor: Colors.card,
   },
   cardImage: { width: "100%", height: 210 },
+  heartBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   cardBody: { padding: 14 },
   tagsRow: {
     flexDirection: "row",

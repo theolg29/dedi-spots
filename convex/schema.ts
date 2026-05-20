@@ -30,9 +30,16 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_spot_and_user", ["spotId", "userId"]),
 
+  favoriteLists: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    createdAt: v.number(),
+  }).index("by_user", ["userId"]),
+
   favorites: defineTable({
     userId: v.id("users"),
     spotId: v.id("spots"),
+    listId: v.optional(v.id("favoriteLists")),
     isPrivate: v.boolean(),
     createdAt: v.number(),
   })
