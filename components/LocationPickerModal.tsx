@@ -5,18 +5,21 @@ import {
   Animated,
   Keyboard,
   Modal,
+  NativeSyntheticEvent,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Region } from "react-native-maps";
+import { Camera, Map, UserLocation, type CameraRef, type ViewStateChangeEvent } from "@maplibre/maplibre-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Colors, Fonts } from "@/constants/theme";
+
+const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -27,54 +30,43 @@ interface Props {
   initialCoords?: LatLng | null;
 }
 
-const DEFAULT_REGION: Region = {
-  latitude: 46.603354,
-  longitude: 1.888334,
-  latitudeDelta: 8,
-  longitudeDelta: 8,
-};
+const DEFAULT_CENTER: [number, number] = [1.888334, 46.603354];
+const DEFAULT_ZOOM = 5;
 
 const PIN_SIZE = 38;
 const SHADOW_W = 14;
 const SHADOW_H = 5;
 
 export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords }: Props) {
-  const mapRef = useRef<MapView>(null);
+  const cameraRef = useRef<CameraRef>(null);
   const pinY = useRef(new Animated.Value(0)).current;
   const shadowScale = useRef(new Animated.Value(1)).current;
   const shadowOpacity = useRef(new Animated.Value(0)).current;
 
   const [center, setCenter] = useState<LatLng>(
-    initialCoords ?? { latitude: DEFAULT_REGION.latitude, longitude: DEFAULT_REGION.longitude }
+    initialCoords ?? { latitude: DEFAULT_CENTER[1], longitude: DEFAULT_CENTER[0] }
   );
   const [address, setAddress] = useState("");
   const [searchText, setSearchText] = useState("");
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
 
-  // Auto-center on GPS position when modal opens without pre-selected coords
   useEffect(() => {
     if (!visible || initialCoords) return;
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") return;
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         setTimeout(() => {
-          mapRef.current?.animateToRegion(
-            {
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-              latitudeDelta: 0.012,
-              longitudeDelta: 0.012,
-            },
-            700
-          );
+          cameraRef.current?.easeTo({
+            center: [loc.coords.longitude, loc.coords.latitude],
+            zoom: 14,
+            duration: 700,
+          });
         }, 400);
       } catch {
-        // silent — map stays on default region
+        // silent
       }
     })();
   }, [visible, initialCoords]);
@@ -94,7 +86,7 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
     }
   }, []);
 
-  const onRegionChange = useCallback(() => {
+  const onRegionIsChanging = useCallback(() => {
     setAddress("...");
     Animated.parallel([
       Animated.spring(pinY, { toValue: -10, useNativeDriver: true, friction: 8, tension: 80 }),
@@ -103,16 +95,16 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
     ]).start();
   }, [pinY, shadowOpacity, shadowScale]);
 
-  const onRegionChangeComplete = useCallback(
-    (region: Region) => {
-      const coords = { latitude: region.latitude, longitude: region.longitude };
-      setCenter(coords);
+  const onRegionDidChange = useCallback(
+    (event: NativeSyntheticEvent<ViewStateChangeEvent>) => {
+      const [lng, lat] = event.nativeEvent.center;
+      setCenter({ latitude: lat, longitude: lng });
       Animated.parallel([
         Animated.spring(pinY, { toValue: 0, useNativeDriver: true, friction: 5, tension: 60 }),
         Animated.spring(shadowScale, { toValue: 1, useNativeDriver: true, friction: 5 }),
         Animated.timing(shadowOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
       ]).start();
-      reverseGeocode(coords.latitude, coords.longitude);
+      reverseGeocode(lat, lng);
     },
     [pinY, shadowOpacity, shadowScale, reverseGeocode]
   );
@@ -124,15 +116,11 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
     try {
       const results = await Location.geocodeAsync(searchText.trim());
       if (results[0]) {
-        mapRef.current?.animateToRegion(
-          {
-            latitude: results[0].latitude,
-            longitude: results[0].longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          },
-          600
-        );
+        cameraRef.current?.easeTo({
+          center: [results[0].longitude, results[0].latitude],
+          zoom: 14,
+          duration: 600,
+        });
       } else {
         Alert.alert("Introuvable", "Essaie une autre adresse ou sois plus précis.");
       }
@@ -152,15 +140,11 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      mapRef.current?.animateToRegion(
-        {
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        },
-        600
-      );
+      cameraRef.current?.easeTo({
+        center: [loc.coords.longitude, loc.coords.latitude],
+        zoom: 16,
+        duration: 600,
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       Alert.alert("Erreur", "Impossible de détecter ta position.");
@@ -174,9 +158,10 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
     onClose();
   };
 
-  const initialRegion: Region = initialCoords
-    ? { ...initialCoords, latitudeDelta: 0.01, longitudeDelta: 0.01 }
-    : DEFAULT_REGION;
+  const initialCenter: [number, number] = initialCoords
+    ? [initialCoords.longitude, initialCoords.latitude]
+    : DEFAULT_CENTER;
+  const initialZoom = initialCoords ? 14 : DEFAULT_ZOOM;
 
   return (
     <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
@@ -213,19 +198,24 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
 
         {/* Map */}
         <View style={s.mapContainer}>
-          <MapView
-            ref={mapRef}
+          <Map
             style={StyleSheet.absoluteFill}
-            initialRegion={initialRegion}
-            onRegionChange={onRegionChange}
-            onRegionChangeComplete={onRegionChangeComplete}
-            showsUserLocation
-            showsMyLocationButton={false}
-          />
+            mapStyle={MAP_STYLE}
+            onRegionIsChanging={onRegionIsChanging}
+            onRegionDidChange={onRegionDidChange}
+            logo={false}
+            compass={false}
+            attribution={false}
+          >
+            <Camera
+              ref={cameraRef}
+              initialViewState={{ center: initialCenter, zoom: initialZoom }}
+            />
+            <UserLocation />
+          </Map>
 
           {/* Pin overlay */}
           <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            {/* Pin icon — tip (bottom of icon) at map center */}
             <Animated.View
               style={{
                 position: "absolute",
@@ -238,8 +228,6 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
             >
               <Octicons name="location" size={PIN_SIZE} color={Colors.primary} />
             </Animated.View>
-
-            {/* Shadow — at map center (ground point) */}
             <Animated.View
               style={{
                 position: "absolute",
@@ -272,9 +260,7 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
           <View style={s.addressRow}>
             <Octicons name="location" size={15} color={Colors.primary} style={{ marginTop: 2 }} />
             <Text style={s.addressText} numberOfLines={2}>
-              {address === "..."
-                ? "Déplace la carte…"
-                : address || "Centre la carte sur le spot"}
+              {address === "..." ? "Déplace la carte…" : address || "Centre la carte sur le spot"}
             </Text>
           </View>
           <TouchableOpacity style={s.confirmBtn} onPress={handleConfirm}>
@@ -288,113 +274,41 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
 }
 
 const s = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    height: 52,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 12, height: 52,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  closeBtn: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 16,
-    fontFamily: Fonts.bodySemiBold,
-    color: Colors.text,
-  },
+  closeBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerTitle: { flex: 1, textAlign: "center", fontSize: 16, fontFamily: Fonts.bodySemiBold, color: Colors.text },
   searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginHorizontal: 16,
-    marginVertical: 10,
-    paddingHorizontal: 14,
-    height: 46,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginHorizontal: 16, marginVertical: 10, paddingHorizontal: 14,
+    height: 46, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: Fonts.body,
-    color: Colors.text,
-    paddingVertical: 0,
-  },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: Fonts.body, color: Colors.text, paddingVertical: 0 },
   searchGoBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: Colors.primary, alignItems: "center", justifyContent: "center",
   },
-  mapContainer: {
-    flex: 1,
-  },
+  mapContainer: { flex: 1 },
   myLocBtn: {
-    position: "absolute",
-    right: 16,
-    bottom: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: Colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: Colors.border,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
+    position: "absolute", right: 16, bottom: 16, width: 44, height: 44,
+    borderRadius: 12, backgroundColor: Colors.background,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: Colors.border, elevation: 4,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4,
   },
   footer: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 10,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    gap: 12,
+    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10,
+    borderTopWidth: 1, borderTopColor: Colors.border, gap: 12,
   },
-  addressRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-  addressText: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: Fonts.body,
-    color: Colors.text,
-    lineHeight: 20,
-  },
+  addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  addressText: { flex: 1, fontSize: 14, fontFamily: Fonts.body, color: Colors.text, lineHeight: 20 },
   confirmBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: Colors.primary,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, height: 52, borderRadius: 14, backgroundColor: Colors.primary,
   },
-  confirmText: {
-    fontSize: 16,
-    fontFamily: Fonts.bodySemiBold,
-    color: "#fff",
-    letterSpacing: 0.2,
-  },
+  confirmText: { fontSize: 16, fontFamily: Fonts.bodySemiBold, color: "#fff", letterSpacing: 0.2 },
 });

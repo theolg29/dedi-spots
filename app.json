@@ -51,7 +51,8 @@
           "locationAlwaysAndWhenInUsePermission": "Spots utilise ta position pour situer les spots sur la carte.",
           "locationWhenInUsePermission": "Spots utilise ta position pour situer les spots sur la carte."
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": true,
