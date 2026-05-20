@@ -13,15 +13,18 @@ import {
   Parkinsans_800ExtraBold,
 } from "@expo-google-fonts/parkinsans";
 import { useFonts } from "expo-font";
-import * as NavigationBar from "expo-navigation-bar";
-import { router, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
-import { useEffect } from "react";
-import { Platform } from "react-native";
+import { useEffect, useState } from "react";
+import { SystemBars } from "react-native-edge-to-edge";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
+
+// Prevent the splash screen from auto-hiding before asset/status loading is complete.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -35,16 +38,9 @@ const secureStorage = {
 
 export const unstable_settings = { initialRouteName: "(tabs)" };
 
-function InitialRedirect() {
-  useEffect(() => {
-    SecureStore.getItemAsync("onboarded").then((value) => {
-      if (!value) router.replace("/onboarding");
-    });
-  }, []);
-  return null;
-}
-
 export default function RootLayout() {
+  const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
+
   const [fontsLoaded, fontError] = useFonts({
     Parkinsans_400Regular,
     Parkinsans_600SemiBold,
@@ -56,29 +52,45 @@ export default function RootLayout() {
     DMSans_700Bold,
   });
 
+  // Check onboarding status on mount
   useEffect(() => {
-    if (Platform.OS === "android") {
-      NavigationBar.setBackgroundColorAsync("transparent");
-      NavigationBar.setButtonStyleAsync("dark");
-    }
+    SecureStore.getItemAsync("onboarded")
+      .then((value) => {
+        setIsOnboarded(value === "true");
+      })
+      .catch(() => {
+        setIsOnboarded(false);
+      });
   }, []);
 
-  if (!fontsLoaded && !fontError) return null;
+  // Hide splash screen only when everything is loaded/checked
+  useEffect(() => {
+    if ((fontsLoaded || fontError) && isOnboarded !== null) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, fontError, isOnboarded]);
+
+  // Prevent rendering stack until initial route and fonts are resolved
+  if ((!fontsLoaded && !fontError) || isOnboarded === null) {
+    return null;
+  }
 
   return (
     <ConvexAuthProvider client={convex} storage={secureStorage}>
       <SafeAreaProvider>
-        <InitialRedirect />
-        <Stack>
+        <SystemBars style="dark" />
+        <Stack initialRouteName={isOnboarded ? "(tabs)" : "onboarding"}>
           <Stack.Screen name="(tabs)"         options={{ headerShown: false }} />
           <Stack.Screen name="onboarding"     options={{ headerShown: false }} />
           <Stack.Screen name="spot/[id]"      options={{ headerShown: false, animation: "slide_from_right" }} />
           <Stack.Screen name="settings"       options={{ headerShown: false, animation: "slide_from_right" }} />
           <Stack.Screen name="category/[tag]" options={{ headerShown: false, animation: "slide_from_right" }} />
           <Stack.Screen name="search"         options={{ headerShown: false, animation: "fade" }} />
+          <Stack.Screen name="modal"          options={{ headerShown: false, presentation: "modal" }} />
         </Stack>
         <StatusBar style="light" />
       </SafeAreaProvider>
     </ConvexAuthProvider>
   );
 }
+

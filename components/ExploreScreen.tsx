@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -11,8 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Camera, Map, Marker, UserLocation, type CameraRef, type ViewStateChangeEvent } from "@maplibre/maplibre-react-native";
-import Svg, { Circle, Text as SvgText } from "react-native-svg";
+import { Camera, Map as MapView, Marker, UserLocation, type CameraRef, type ViewStateChangeEvent } from "@maplibre/maplibre-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { Octicons } from "@expo/vector-icons";
@@ -21,7 +20,7 @@ import * as Haptics from "expo-haptics";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors, Fonts } from "@/constants/theme";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const DEFAULT_CENTER: [number, number] = [1.888334, 46.603354]; // [lng, lat]
@@ -143,30 +142,36 @@ export default function MapScreen() {
     [filteredSpots, zoom]
   );
 
-  useEffect(() => {
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setPermissionDenied(true);
-        return;
-      }
-      setHasPermission(true);
-      setPermissionDenied(false);
-      try {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-        setTimeout(() => {
-          cameraRef.current?.easeTo({
-            center: [loc.coords.longitude, loc.coords.latitude],
-            zoom: 12,
-            duration: 700,
-          });
-        }, 400);
-      } catch {
-        // stay on default position
-      }
-    })();
-  }, []);
+  const locationInitialized = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (locationInitialized.current) return;
+      locationInitialized.current = true;
+      (async () => {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setPermissionDenied(true);
+          return;
+        }
+        setHasPermission(true);
+        setPermissionDenied(false);
+        try {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+          setTimeout(() => {
+            cameraRef.current?.easeTo({
+              center: [loc.coords.longitude, loc.coords.latitude],
+              zoom: 12,
+              duration: 700,
+            });
+          }, 400);
+        } catch {
+          // stay on default position
+        }
+      })();
+    }, [])
+  );
 
   const openSheet = (spot: SpotItem) => {
     setSelectedSpot(spot);
@@ -231,7 +236,7 @@ export default function MapScreen() {
 
   return (
     <View style={s.container}>
-      <Map
+      <MapView
         style={StyleSheet.absoluteFill}
         mapStyle={MAP_STYLE}
         onPress={handleMapPress}
@@ -254,20 +259,12 @@ export default function MapScreen() {
                 onPress={() => handleClusterPress(item.latitude, item.longitude)}
                 anchor="center"
               >
-                <Svg width={50} height={50} viewBox="0 0 50 50">
-                  <Circle cx={25} cy={25} r={23} fill="rgba(74,124,89,0.15)" />
-                  <Circle cx={25} cy={25} r={16} fill={Colors.primary} />
-                  <SvgText
-                    x={25} y={25}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fontSize={12}
-                    fontWeight="700"
-                    fill="white"
-                  >
-                    {item.count}
-                  </SvgText>
-                </Svg>
+                <View collapsable={false} style={{ width: 50, height: 50, alignItems: "center", justifyContent: "center" }}>
+                  <View style={{ position: "absolute", width: 50, height: 50, borderRadius: 25, backgroundColor: "rgba(31,92,58,0.12)" }} />
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.primary, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color: "white", fontSize: 12, fontWeight: "700" }}>{item.count}</Text>
+                  </View>
+                </View>
               </Marker>
             );
           }
@@ -280,21 +277,21 @@ export default function MapScreen() {
               onPress={() => handleSpotPress(spot)}
               anchor="center"
             >
-              <Svg
-                width={isSelected ? 38 : 30}
-                height={isSelected ? 38 : 30}
-                viewBox={isSelected ? "0 0 38 38" : "0 0 30 30"}
-              >
-                <Circle cx={isSelected ? 19 : 15} cy={isSelected ? 19 : 15} r={isSelected ? 17 : 13} fill="white" />
-                <Circle
-                  cx={isSelected ? 19 : 15} cy={isSelected ? 19 : 15} r={isSelected ? 10 : 8}
-                  fill={isSelected ? Colors.accent : Colors.primary}
-                />
-              </Svg>
+              <View
+                collapsable={false}
+                style={{
+                  width: isSelected ? 38 : 30,
+                  height: isSelected ? 38 : 30,
+                  borderRadius: (isSelected ? 38 : 30) / 2,
+                  borderWidth: isSelected ? 3 : 2,
+                  borderColor: "white",
+                  backgroundColor: isSelected ? Colors.accent : Colors.primary,
+                }}
+              />
             </Marker>
           );
         })}
-      </Map>
+      </MapView>
 
       {/* Header overlay */}
       <SafeAreaView edges={["top"]} pointerEvents="box-none" style={StyleSheet.absoluteFill}>

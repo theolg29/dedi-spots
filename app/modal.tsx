@@ -1,29 +1,67 @@
-import { Link } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { router } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Octicons } from "@expo/vector-icons";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { Colors, Fonts } from "@/constants/theme";
 
-export default function ModalScreen() {
+export default function NotificationsModal() {
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title">This is a modal</ThemedText>
-      <Link href="/" dismissTo style={styles.link}>
-        <ThemedText type="link">Go to home screen</ThemedText>
-      </Link>
-    </ThemedView>
+    <SafeAreaView style={s.screen}>
+      <View style={s.header}>
+        <Text style={s.title}>Notifications</Text>
+        <Pressable
+          style={({ pressed }) => [s.closeBtn, pressed && { opacity: 0.6 }]}
+          onPress={() => router.back()}
+        >
+          <Octicons name="x" size={20} color={Colors.text} />
+        </Pressable>
+      </View>
+
+      <View style={s.empty}>
+        <Octicons name="bell" size={36} color={Colors.muted} />
+        <Text style={s.emptyTitle}>Aucune notification</Text>
+        <Text style={s.emptySub}>Tu seras notifié quand quelqu'un interagit avec tes spots.</Text>
+      </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: Colors.background },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  link: {
-    marginTop: 15,
-    paddingVertical: 15,
+  title: {
+    fontSize: 18,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  closeBtn: { padding: 4 },
+  empty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+  },
+  emptySub: {
+    fontSize: 14,
+    fontFamily: Fonts.body,
+    color: Colors.muted,
+    textAlign: "center",
+    lineHeight: 20,
   },
 });
