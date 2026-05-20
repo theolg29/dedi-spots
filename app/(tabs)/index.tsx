@@ -17,11 +17,11 @@ type OcticonName = React.ComponentProps<typeof Octicons>["name"];
 
 export const CATEGORIES: { label: string; icon: OcticonName; bg: string; color: string }[] = [
   { label: "Plage",             icon: "sun",        bg: "#D6EEFF", color: "#2478C4" },
-  { label: "Forêt",             icon: "leaf",       bg: "#D8F0E4", color: "#2C7A48" },
+  { label: "Forêt",             icon: "north-star", bg: "#D8F0E4", color: "#2C7A48" },
   { label: "Panorama",         icon: "telescope",  bg: "#EAE6F8", color: "#6B4FC0" },
   { label: "Montagne",         icon: "location",   bg: "#E6F0EB", color: "#4A7C59" },
   { label: "Coucher de soleil", icon: "flame",     bg: "#FDECEA", color: "#D95F30" },
-  { label: "Cascade",          icon: "droplet",    bg: "#D4EEF7", color: "#2588AB" },
+  { label: "Cascade",          icon: "cloud",      bg: "#D4EEF7", color: "#2588AB" },
   { label: "Lac",               icon: "globe",      bg: "#D8EAF7", color: "#2270A8" },
   { label: "Urbain",           icon: "home",       bg: "#EEE8E0", color: "#8B6A44" },
   { label: "Caché",             icon: "eye-closed", bg: "#EDE9F7", color: "#7350B8" },

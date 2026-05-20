@@ -1,6 +1,6 @@
 import { Octicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/theme";
-import { Icon, Label, NativeTabs, VectorIcon } from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 
 export default function TabLayout() {
   return (
@@ -10,26 +10,27 @@ export default function TabLayout() {
       indicatorColor={Colors.primary}
       iconColor={{ default: "rgba(0,0,0,0.38)", selected: "#FFFFFF" }}
       labelVisibilityMode="labeled"
+      rippleColor="transparent"
     >
       <NativeTabs.Trigger name="index">
-        <Icon src={<VectorIcon family={Octicons} name="home" />} />
-        <Label>Feed</Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Octicons} name="home" />} />
+        <NativeTabs.Trigger.Label>Feed</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="explore">
-        <Icon src={<VectorIcon family={Octicons} name="location" />} />
-        <Label>Carte</Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Octicons} name="location" />} />
+        <NativeTabs.Trigger.Label>Carte</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="create">
-        <Icon src={<VectorIcon family={Octicons} name="plus-circle" />} />
-        <Label>Créer</Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Octicons} name="plus-circle" />} />
+        <NativeTabs.Trigger.Label>Créer</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="favorites">
-        <Icon src={<VectorIcon family={Octicons} name="heart" />} />
-        <Label>Favoris</Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Octicons} name="heart" />} />
+        <NativeTabs.Trigger.Label>Favoris</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
-        <Icon src={<VectorIcon family={Octicons} name="person" />} />
-        <Label>Profil</Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Octicons} name="person" />} />
+        <NativeTabs.Trigger.Label>Profil</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="categories" hidden />
     </NativeTabs>
