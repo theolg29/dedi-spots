@@ -9,6 +9,7 @@ export default function TabLayout() {
       backgroundColor="#F9F9FB"
       indicatorColor={Colors.primary}
       iconColor={{ default: "rgba(0,0,0,0.38)", selected: "#FFFFFF" }}
+      labelVisibilityMode="labeled"
     >
       <NativeTabs.Trigger name="index">
         <Icon src={<VectorIcon family={Octicons} name="home" />} />
