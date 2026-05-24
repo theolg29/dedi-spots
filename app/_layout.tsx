@@ -85,6 +85,7 @@ export default function RootLayout() {
           <Stack.Screen name="spot/[id]"      options={{ headerShown: false, animation: "slide_from_right" }} />
           <Stack.Screen name="settings"       options={{ headerShown: false, animation: "slide_from_right" }} />
           <Stack.Screen name="category/[tag]" options={{ headerShown: false, animation: "slide_from_right" }} />
+          <Stack.Screen name="user/[id]"      options={{ headerShown: false, animation: "slide_from_right" }} />
           <Stack.Screen name="search"         options={{ headerShown: false, animation: "fade" }} />
           <Stack.Screen name="modal"          options={{ headerShown: false, presentation: "modal" }} />
         </Stack>

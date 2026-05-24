@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -20,13 +20,12 @@ import * as Haptics from "expo-haptics";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors, Fonts } from "@/constants/theme";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const DEFAULT_CENTER: [number, number] = [1.888334, 46.603354]; // [lng, lat]
 const DEFAULT_ZOOM = 5;
-const TAB_BAR_H = 72;
-const SHEET_HEIGHT = 140;
+const SHEET_HEIGHT = 108;
 
 function zoomToLatitudeDelta(zoom: number): number {
   return 360 / Math.pow(2, zoom);
@@ -91,9 +90,11 @@ function computeClusters(spots: SpotItem[], latitudeDelta: number): MapCluster[]
 }
 
 export default function MapScreen() {
+  const { spotId } = useLocalSearchParams<{ spotId?: string }>();
   const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraRef>(null);
-  const sheetY = useRef(new Animated.Value(SHEET_HEIGHT + TAB_BAR_H)).current;
+  const pendingSpotId = useRef<string | null>(null);
+  const sheetY = useRef(new Animated.Value(SHEET_HEIGHT + 50)).current;
 
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [selectedSpot, setSelectedSpot] = useState<SpotItem | null>(null);
@@ -144,9 +145,45 @@ export default function MapScreen() {
 
   const locationInitialized = useRef(false);
 
+  // Track incoming spotId param
+  useEffect(() => {
+    if (spotId) {
+      pendingSpotId.current = spotId;
+    }
+  }, [spotId]);
+
+  // When spots are loaded and we have a pending spotId, fly to it
+  useEffect(() => {
+    if (!pendingSpotId.current || spots.length === 0) return;
+    const target = spots.find((sp) => sp._id === pendingSpotId.current);
+    if (target) {
+      pendingSpotId.current = null;
+      setTimeout(() => {
+        openSheet(target);
+        cameraRef.current?.easeTo({
+          center: [target.longitude, target.latitude],
+          zoom: 15,
+          duration: 800,
+        });
+      }, 500);
+    }
+  }, [spots, spotId]);
+
   useFocusEffect(
     useCallback(() => {
       if (locationInitialized.current) return;
+      if (spotId) {
+        // Skip auto-location when navigating to a specific spot
+        locationInitialized.current = true;
+        (async () => {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === "granted") {
+            setHasPermission(true);
+            setPermissionDenied(false);
+          }
+        })();
+        return;
+      }
       locationInitialized.current = true;
       (async () => {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -170,7 +207,7 @@ export default function MapScreen() {
           // stay on default position
         }
       })();
-    }, [])
+    }, [spotId])
   );
 
   const openSheet = (spot: SpotItem) => {
@@ -184,7 +221,7 @@ export default function MapScreen() {
   };
 
   const closeSheet = () => {
-    Animated.timing(sheetY, { toValue: SHEET_HEIGHT + TAB_BAR_H, duration: 220, useNativeDriver: true }).start(
+    Animated.timing(sheetY, { toValue: SHEET_HEIGHT + 50, duration: 220, useNativeDriver: true }).start(
       () => setSelectedSpot(null)
     );
   };
@@ -226,8 +263,8 @@ export default function MapScreen() {
 
   const isLoading = rawSpots === undefined;
   const spotCount = filteredSpots.length;
-  const btnBottom = TAB_BAR_H + insets.bottom + 16;
-  const sheetBottom = TAB_BAR_H + insets.bottom;
+  const btnBottom = 16;
+  const sheetBottom = 8;
 
   const selectedDistance = useMemo(() => {
     if (!selectedSpot || !userLocation) return null;
@@ -442,11 +479,7 @@ export default function MapScreen() {
             </View>
           </TouchableOpacity>
         )}
-        {selectedSpot && (
-          <TouchableOpacity style={s.closeBtn} onPress={closeSheet}>
-            <Octicons name="x" size={15} color={Colors.muted} />
-          </TouchableOpacity>
-        )}
+
       </Animated.View>
     </View>
   );
@@ -510,7 +543,7 @@ const s = StyleSheet.create({
   emptySubtitle: { fontSize: 13, fontFamily: Fonts.body, color: Colors.muted, textAlign: "center" },
   emptyCta: { marginTop: 4, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
   emptyCtaText: { fontSize: 13, fontFamily: Fonts.bodySemiBold, color: "#fff" },
-  sheet: { position: "absolute", left: 0, right: 0, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 },
+  sheet: { position: "absolute", left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   card: {
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: Colors.card, borderRadius: 16, borderWidth: 1, borderColor: Colors.border,
@@ -538,8 +571,4 @@ const s = StyleSheet.create({
   tag: { backgroundColor: Colors.tagBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
   tagText: { fontSize: 10, fontFamily: Fonts.bodyMedium, color: Colors.tagText },
   arrowBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center" },
-  closeBtn: {
-    position: "absolute", top: 4, right: 20, width: 26, height: 26, borderRadius: 13,
-    backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center",
-  },
 });

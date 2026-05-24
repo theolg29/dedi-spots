@@ -128,3 +128,89 @@ export const run = mutation({
     return { message: "Seeded! 3 spots, 5 reviews." };
   },
 });
+
+export const addToulonSpot = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const marie = await createUser(ctx, {
+      name: "Marie Dupont",
+      email: "marie@spots.app",
+      image: "https://i.pravatar.cc/150?img=47",
+    });
+    const lucas = await createUser(ctx, {
+      name: "Lucas Bernard",
+      email: "lucas@spots.app",
+      image: "https://i.pravatar.cc/150?img=12",
+    });
+    const emma = await createUser(ctx, {
+      name: "Emma Leclerc",
+      email: "emma@spots.app",
+      image: "https://i.pravatar.cc/150?img=32",
+    });
+    const theo = await createUser(ctx, {
+      name: "Théo Martin",
+      email: "theo@spots.app",
+      image: "https://i.pravatar.cc/150?img=8",
+    });
+    const sofia = await createUser(ctx, {
+      name: "Sofia Ramos",
+      email: "sofia@spots.app",
+      image: "https://i.pravatar.cc/150?img=25",
+    });
+
+    const spot = await ctx.db.insert("spots", {
+      creatorId: marie,
+      title: "Calanque de l'Eoube, Toulon",
+      description:
+        "Une calanque confidentielle nichée entre les caps Sicié et Cépet, à l'écart des foules de la rade de Toulon. L'eau y est d'un turquoise profond, protégée par des falaises calcaires qui tombent directement dans la mer. Accessible uniquement à pied depuis le sentier du littoral (30 min depuis Le Brusc), ou en bateau. La lumière en fin d'après-midi illumine les falaises d'un orange doré absolument unique. Idéal pour le snorkeling — des mérous et des sars se baladent à quelques mètres du bord.",
+      latitude: 43.0731,
+      longitude: 5.8820,
+      photos: [
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&q=80",
+        "https://images.unsplash.com/photo-1533760881669-80db4d7b341d?w=900&q=80",
+        "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=900&q=80",
+        "https://images.unsplash.com/photo-1504248888188-31a1a0d673e8?w=900&q=80",
+      ],
+      tags: ["#Calanque", "#Snorkeling", "#VueMer", "#CoucherDeSoleil", "#Randonnée"],
+      createdAt: Date.now() - 2 * 86400000,
+    });
+
+    await ctx.db.insert("reviews", {
+      spotId: spot,
+      userId: lucas,
+      rating: 5,
+      comment: "L'endroit le plus beau que j'aie vu sur la côte varoise. L'eau est incroyablement claire, on voit le fond à 5 mètres. À faire absolument en fin de journée.",
+      createdAt: Date.now() - 1 * 86400000,
+    });
+    await ctx.db.insert("reviews", {
+      spotId: spot,
+      userId: emma,
+      rating: 5,
+      comment: "Coup de cœur total. La marche pour y accéder est légère et le paysage récompense largement l'effort. Prévoir un pique-nique, on a envie de ne jamais repartir.",
+      createdAt: Date.now() - 18 * 3600000,
+    });
+    await ctx.db.insert("reviews", {
+      spotId: spot,
+      userId: theo,
+      rating: 4,
+      comment: "Superbe calanque, peu connue même des Toulonnais. Quelques oursins à éviter près des rochers. Masque de snorkeling indispensable.",
+      createdAt: Date.now() - 12 * 3600000,
+    });
+    await ctx.db.insert("reviews", {
+      spotId: spot,
+      userId: sofia,
+      rating: 5,
+      comment: "On y est allés en kayak depuis le Brusc, vue imprenable depuis la mer. Les falaises orangées au soleil couchant, je n'oublierai jamais.",
+      createdAt: Date.now() - 6 * 3600000,
+    });
+    await ctx.db.insert("reviews", {
+      spotId: spot,
+      userId: marie,
+      rating: 4,
+      comment: "Très belle calanque mais le sentier peut être un peu glissant après la pluie. Eau turquoise parfaite pour se baigner.",
+      createdAt: Date.now() - 2 * 3600000,
+    });
+
+    return { message: "Toulon spot added with 5 reviews." };
+  },
+});

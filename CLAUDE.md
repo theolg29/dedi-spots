@@ -10,12 +10,12 @@
 
 | Couche | Technologie |
 |---|---|
-| Framework mobile | Expo ~54 (React Native) |
-| Routing | Expo Router ~6 |
+| Framework mobile | Expo ~55 (React Native) |
+| Routing | Expo Router ~55 |
 | Backend & base de données | Convex (free tier) |
-| Auth | `@convex-dev/auth` + `@auth/core@0.37.0` |
-| Styling | NativeWind v5 (Tailwind pour React Native) |
-| Cartographie | `react-native-maps` (Apple Maps iOS / Google Maps Android) |
+| Auth | `@convex-dev/auth` + `@auth/core@0.37.4` |
+| Styling | `StyleSheet.create` (React Native natif) |
+| Cartographie | `@maplibre/maplibre-react-native` + tuiles OpenFreeMap (`https://tiles.openfreemap.org/styles/liberty`) |
 | Géolocalisation | `expo-location` |
 | Images | Convex Storage |
 | Langage | TypeScript strict |
@@ -29,30 +29,37 @@ spots/
 ├── app/
 │   ├── _layout.tsx              # Root layout — ConvexAuthProvider + SecureStore + Stack
 │   ├── onboarding.tsx           # Slides d'onboarding + formulaire auth
+│   ├── modal.tsx                # Modal générique (notifications…)
 │   ├── search.tsx               # Page de recherche (spots, tags)
+│   ├── settings.tsx             # Paramètres utilisateur
 │   ├── category/[tag].tsx       # Spots filtrés par catégorie (Stack screen)
 │   ├── (tabs)/
 │   │   ├── _layout.tsx          # Tab bar (5 onglets + écrans cachés)
 │   │   ├── index.tsx            # Feed / accueil — hero vert, catégories, spots
-│   │   ├── explore.tsx          # Vue carte
+│   │   ├── explore.tsx          # Vue carte (délègue à components/ExploreScreen)
 │   │   ├── create.tsx           # Créer un spot
-│   │   ├── favorites.tsx        # Favoris
+│   │   ├── favorites.tsx        # Favoris — Coups de cœurs + listes perso
 │   │   ├── profile.tsx          # Profil
 │   │   └── categories.tsx       # Toutes les catégories (tab caché, navbar visible)
 │   └── spot/[id].tsx            # Détail d'un spot
 ├── components/
 │   ├── AppHeader.tsx            # Header vert réutilisable (Spots + cloche + search bar)
+│   ├── ExploreScreen.tsx        # Écran carte MapLibre complet (clusters, sheet, recherche)
+│   ├── ExploreScreen.web.tsx    # Stub web
+│   ├── AddToFavoritesSheet.tsx  # Bottom sheet pour ajouter un spot à une liste
 │   ├── auth-form.tsx            # Formulaire auth réutilisable (signup/login + Google)
-│   ├── LocationPickerModal.tsx  # Sélecteur de position (carte native)
-│   ├── LocationPickerModal.web.tsx  # Stub web (react-native-maps natif uniquement)
+│   ├── LocationPickerModal.tsx  # Sélecteur de position (carte MapLibre)
+│   ├── LocationPickerModal.web.tsx  # Stub web
 │   └── ui/                      # Composants UI génériques
 ├── convex/
-│   ├── schema.ts                # Schéma — ...authTables + spots/reviews/favorites
+│   ├── schema.ts                # Schéma — ...authTables + spots/reviews/favorites/userProfiles
 │   ├── auth.ts                  # Config @convex-dev/auth (Password + Google)
 │   ├── http.ts                  # auth.addHttpRoutes(http)
 │   ├── convex.config.ts         # defineApp() vide
 │   ├── users.ts                 # getMyProfile, viewer, updateProfile, updateAvatar
-│   └── spots.ts                 # Queries/mutations spots
+│   ├── spots.ts                 # Queries/mutations spots
+│   ├── favorites.ts             # Queries/mutations favoris + listes
+│   └── emails.ts                # Envoi d'emails (Resend)
 └── constants/
     └── theme.ts                 # Couleurs (Colors) et typographie (Fonts)
 ```
@@ -127,12 +134,18 @@ if (url) await WebBrowser.openAuthSessionAsync(url, "spots://");
 
 Tables applicatives :
 ```
-spots      { creatorId, title, description, latitude, longitude,
-             photos[], tags[], createdAt }         index: by_creator, by_location
-reviews    { spotId, userId, rating, comment?,
-             createdAt }                           index: by_spot, by_user, by_spot_and_user
-favorites  { userId, spotId, isPrivate,
-             createdAt }                           index: by_user, by_spot, by_user_and_spot
+spots         { creatorId, title, description, latitude, longitude,
+                photos[], tags[], createdAt, creatorAnonymized? }
+                index: by_creator, by_location
+reviews       { spotId, userId, rating, comment?, createdAt }
+                index: by_spot, by_user, by_spot_and_user
+favorites     { userId, spotId, listId?, isPrivate, createdAt }
+                index: by_user, by_spot, by_user_and_spot
+favoriteLists { userId, name, createdAt }
+                index: by_user
+userProfiles  { userId, username?, firstName?, lastName?, country?,
+                avatarStorageId? }
+                index: by_user, by_username
 ```
 
 ---
@@ -152,7 +165,7 @@ favorites  { userId, spotId, isPrivate,
 
 - **Code propre et maintenable** : extraire les composants réutilisables, pas de logique ou styles dupliqués, nettoyer les imports/styles orphelins après chaque refacto.
 - Toujours lire `convex/_generated/ai/guidelines.md` avant d'écrire du code Convex.
-- Zéro coût d'infrastructure : rester sur les free tiers (Convex, Google Maps mobile).
+- Zéro coût d'infrastructure : rester sur les free tiers (Convex, MapLibre/OpenFreeMap).
 - Pas de modération de contenu prévue pour le MVP.
 - **Icônes** : utiliser uniquement `Octicons` de `@expo/vector-icons` (`import { Octicons } from "@expo/vector-icons"`). Ne pas utiliser Ionicons, MaterialIcons ou d'autres sets. Si une icône manque dans Octicons, chercher l'équivalent le plus proche dans ce set.
 
@@ -176,5 +189,5 @@ Convex agent skills for common tasks can be installed by running
 
 ## Environnement de développement
 
-- **Plateforme de test** : Android physique via **Expo Go**
-- `expo-blur` / BlurView **ne fonctionne pas** sous Expo Go Android → ne pas utiliser pour des effets visuels critiques, privilégier des backgrounds semi-transparents (`rgba(...)`) comme fallback visible.
+- **Plateforme de test** : Android physique via **development build** (pas Expo Go)
+- `expo-blur` / BlurView peut ne pas fonctionner sur Android → préférer des backgrounds semi-transparents (`rgba(...)`) comme fallback.

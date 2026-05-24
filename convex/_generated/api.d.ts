@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as emails from "../emails.js";
 import type * as favorites from "../favorites.js";
+import type * as follows from "../follows.js";
 import type * as http from "../http.js";
 import type * as seed from "../seed.js";
 import type * as spots from "../spots.js";
@@ -26,6 +27,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   emails: typeof emails;
   favorites: typeof favorites;
+  follows: typeof follows;
   http: typeof http;
   seed: typeof seed;
   spots: typeof spots;

@@ -104,6 +104,50 @@ export const createList = mutation({
   },
 });
 
+// Default bucket spots with resolved photos and ratings (for "Coups de coeurs" section)
+export const getDefaultFavoriteSpots = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const defaultFavs = await ctx.db
+      .query("favorites")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(20);
+
+    const filtered = defaultFavs.filter((f) => !f.listId);
+
+    return await Promise.all(
+      filtered.map(async (fav) => {
+        const spot = await ctx.db.get(fav.spotId);
+        if (!spot) return null;
+
+        const photo = spot.photos[0] ? await resolvePhoto(ctx, spot.photos[0]) : null;
+
+        const reviews = await ctx.db
+          .query("reviews")
+          .withIndex("by_spot", (q) => q.eq("spotId", spot._id))
+          .take(100);
+        const avgRating =
+          reviews.length > 0
+            ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10
+            : 0;
+
+        return {
+          _id: spot._id,
+          title: spot.title,
+          tags: spot.tags,
+          photo,
+          avgRating,
+          reviewCount: reviews.length,
+        };
+      })
+    ).then((results) => results.filter((r): r is NonNullable<typeof r> => r !== null));
+  },
+});
+
 // Overview for the favorites page: default bucket + all lists with counts and cover photos
 export const getOverview = query({
   args: {},

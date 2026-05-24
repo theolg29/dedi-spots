@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
 
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { Colors, Fonts } from "@/constants/theme";
 
 type ListEntry = {
@@ -22,6 +23,58 @@ type ListEntry = {
   count: number;
   cover: string | null;
 };
+
+type FavoriteSpot = {
+  _id: Id<"spots">;
+  title: string;
+  tags: string[];
+  photo: string | null;
+  avgRating: number;
+  reviewCount: number;
+};
+
+function SpotRow({ spot }: { spot: FavoriteSpot }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [s.spotRow, pressed && { opacity: 0.88 }]}
+      onPress={() => router.push(`/spot/${spot._id}`)}
+    >
+      {spot.photo ? (
+        <Image source={{ uri: spot.photo }} style={s.spotRowThumb} contentFit="cover" />
+      ) : (
+        <View style={[s.spotRowThumb, s.spotRowThumbEmpty]}>
+          <Octicons name="image" size={20} color={Colors.muted} />
+        </View>
+      )}
+      <View style={s.spotRowInfo}>
+        <Text style={s.spotRowTitle} numberOfLines={1}>{spot.title}</Text>
+        <View style={s.spotRowMeta}>
+          {spot.avgRating > 0 && (
+            <View style={s.ratingPill}>
+              <Text style={s.ratingPillStar}>★</Text>
+              <Text style={s.ratingPillVal}>{spot.avgRating.toFixed(1)}</Text>
+            </View>
+          )}
+          {spot.reviewCount > 0 && (
+            <Text style={s.spotRowCount}>{spot.reviewCount} avis</Text>
+          )}
+        </View>
+        {spot.tags.length > 0 && (
+          <View style={s.spotRowTags}>
+            {spot.tags.slice(0, 2).map((tag) => (
+              <View key={tag} style={s.spotRowTag}>
+                <Text style={s.spotRowTagText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+      <View style={s.arrowBtn}>
+        <Octicons name="arrow-right" size={16} color={Colors.primary} />
+      </View>
+    </Pressable>
+  );
+}
 
 function ListRow({
   icon,
@@ -67,6 +120,7 @@ function ListRow({
 
 export default function FavoritesScreen() {
   const overview = useQuery(api.favorites.getOverview);
+  const defaultSpots = useQuery(api.favorites.getDefaultFavoriteSpots);
   const createList = useMutation(api.favorites.createList);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -170,30 +224,33 @@ export default function FavoritesScreen() {
           </View>
         )}
 
-        {/* Default "Favoris" row */}
+        {/* Coups de coeurs */}
         {overview && overview.default.count > 0 && (
-          <ListRow
-            icon="heart-fill"
-            iconBg="#FFF0EB"
-            iconColor={Colors.accent}
-            cover={overview.default.cover}
-            name="Favoris"
-            count={overview.default.count}
-          />
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Coups de cœurs</Text>
+            {defaultSpots?.map((spot) => (
+              <SpotRow key={spot._id} spot={spot} />
+            ))}
+          </View>
         )}
 
-        {/* Custom lists */}
-        {overview?.lists.map((list) => (
-          <ListRow
-            key={list._id}
-            icon="list-unordered"
-            iconBg={Colors.tagBg}
-            iconColor={Colors.primary}
-            cover={list.cover}
-            name={list.name}
-            count={list.count}
-          />
-        ))}
+        {/* Mes listes */}
+        {overview && overview.lists.length > 0 && (
+          <View>
+            <Text style={s.sectionTitle2}>Mes listes</Text>
+            {overview.lists.map((list) => (
+              <ListRow
+                key={list._id}
+                icon="list-unordered"
+                iconBg={Colors.tagBg}
+                iconColor={Colors.primary}
+                cover={list.cover}
+                name={list.name}
+                count={list.count}
+              />
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -351,6 +408,93 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontFamily: Fonts.body,
     color: Colors.textSecondary,
+  },
+
+  // ── Sections ─────────────────────────────────────────────
+  section: {
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    letterSpacing: -0.3,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 14,
+  },
+  sectionTitle2: {
+    fontSize: 20,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    letterSpacing: -0.3,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+
+  // ── Spot rows (Coups de cœurs) ────────────────────────────
+  spotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 10,
+    marginHorizontal: 20,
+    marginBottom: 10,
+  },
+  spotRowThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    flexShrink: 0,
+  },
+  spotRowThumbEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  spotRowInfo: { flex: 1, gap: 4 },
+  spotRowTitle: {
+    fontSize: 15,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    letterSpacing: -0.2,
+  },
+  spotRowMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
+  ratingPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: Colors.tagBg,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
+  ratingPillStar: { fontSize: 10, color: Colors.accent },
+  ratingPillVal: { fontSize: 11, fontFamily: Fonts.bodySemiBold, color: Colors.text },
+  spotRowCount: { fontSize: 11, fontFamily: Fonts.body, color: Colors.muted },
+  spotRowTags: { flexDirection: "row", gap: 5, flexWrap: "wrap" },
+  spotRowTag: {
+    backgroundColor: Colors.tagBg,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
+  spotRowTagText: { fontSize: 10, fontFamily: Fonts.bodyMedium, color: Colors.tagText },
+  arrowBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
 
   // ── States ───────────────────────────────────────────────

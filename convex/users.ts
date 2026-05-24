@@ -2,6 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 export const getMyProfile = query({
   args: {},
@@ -172,6 +173,54 @@ export const updateAvatar = mutation({
     } else {
       await ctx.db.insert("userProfiles", { userId, avatarStorageId: storageId });
     }
+  },
+});
+
+export const getPublicProfile = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get(userId);
+    if (!user) return null;
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    let avatarUrl: string | null = null;
+    if (profile?.avatarStorageId) {
+      avatarUrl = await ctx.storage.getUrl(profile.avatarStorageId);
+    }
+
+    const spots = await ctx.db
+      .query("spots")
+      .withIndex("by_creator", (q) => q.eq("creatorId", userId))
+      .order("desc")
+      .take(20);
+
+    const spotsWithPhotos = await Promise.all(
+      spots.map(async (spot) => {
+        const firstPhoto = spot.photos[0]
+          ? spot.photos[0].startsWith("http")
+            ? spot.photos[0]
+            : await ctx.storage.getUrl(spot.photos[0] as Id<"_storage">)
+          : null;
+        return {
+          _id: spot._id,
+          title: spot.title,
+          tags: spot.tags,
+          photo: firstPhoto ?? null,
+        };
+      })
+    );
+
+    return {
+      _id: userId,
+      name: user.name ?? null,
+      profile,
+      avatarUrl: avatarUrl ?? user.image ?? null,
+      spots: spotsWithPhotos,
+    };
   },
 });
 
