@@ -302,7 +302,7 @@ const s = StyleSheet.create({
   signOutBtn: {
     marginHorizontal: 20,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: "center",

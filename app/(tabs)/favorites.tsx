@@ -148,10 +148,10 @@ export default function FavoritesScreen() {
           </View>
           <View style={s.headerRight}>
             <Pressable style={s.iconBtn} onPress={() => router.push("/modal")}>
-              <Octicons name="bell" size={18} color="#fff" />
+              <Octicons name="bell" size={18} color={Colors.text} />
             </Pressable>
             <Pressable style={s.iconBtn} onPress={() => router.push("/search")}>
-              <Octicons name="search" size={18} color="#fff" />
+              <Octicons name="search" size={18} color={Colors.text} />
             </Pressable>
           </View>
         </View>
@@ -183,10 +183,10 @@ export default function FavoritesScreen() {
         </View>
         <View style={s.headerRight}>
           <Pressable style={s.iconBtn} onPress={() => router.push("/modal")}>
-            <Octicons name="bell" size={18} color="#fff" />
+            <Octicons name="bell" size={18} color={Colors.text} />
           </Pressable>
           <Pressable style={s.iconBtn} onPress={() => router.push("/search")}>
-            <Octicons name="search" size={18} color="#fff" />
+            <Octicons name="search" size={18} color={Colors.text} />
           </Pressable>
         </View>
       </View>
@@ -219,7 +219,7 @@ export default function FavoritesScreen() {
               onPress={handleCreateList}
               disabled={!newName.trim()}
             >
-              <Octicons name="check" size={16} color="#fff" />
+              <Octicons name="check" size={16} color={Colors.text} />
             </Pressable>
             <Pressable style={s.cancelBtn} onPress={() => { setCreating(false); setNewName(""); }}>
               <Octicons name="x" size={16} color={Colors.textSecondary} />
@@ -231,7 +231,7 @@ export default function FavoritesScreen() {
             onPress={() => setCreating(true)}
           >
             <View style={s.createListIcon}>
-              <Octicons name="plus" size={20} color="#fff" />
+              <Octicons name="plus" size={20} color={Colors.text} />
             </View>
             <Text style={s.createListLabel}>Créer une liste</Text>
           </Pressable>
@@ -293,23 +293,25 @@ export default function FavoritesScreen() {
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.primary },
+  screen: { flex: 1, backgroundColor: Colors.background },
 
   // ── Header ──────────────────────────────────────────────
   header: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.background,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   headerLeft: { flexDirection: "row", alignItems: "center" },
   headerTitle: {
     fontSize: 28,
     fontFamily: Fonts.headingBold,
-    color: "#fff",
+    color: Colors.text,
     letterSpacing: -0.5,
   },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -317,11 +319,11 @@ const s = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
+    borderColor: Colors.border,
   },
 
   // ── Scroll ───────────────────────────────────────────────
@@ -384,7 +386,7 @@ const s = StyleSheet.create({
   confirmBtn: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 999,
     backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
@@ -393,7 +395,7 @@ const s = StyleSheet.create({
   cancelBtn: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 999,
     backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",

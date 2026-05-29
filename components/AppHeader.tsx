@@ -20,7 +20,7 @@ export function AppHeader({ showBack = false }: Props) {
         <View style={s.left}>
           {showBack && (
             <Pressable style={s.backBtn} onPress={() => router.back()}>
-              <Octicons name="arrow-left" size={20} color="#fff" />
+              <Octicons name="arrow-left" size={20} color={Colors.text} />
             </Pressable>
           )}
           <Text style={s.title}>Spots</Text>
@@ -28,7 +28,7 @@ export function AppHeader({ showBack = false }: Props) {
 
         <View style={s.actions}>
           <Pressable style={s.iconBtn} onPress={() => router.push("/modal")}>
-            <Octicons name="bell" size={18} color="#fff" />
+            <Octicons name="bell" size={18} color={Colors.text} />
           </Pressable>
           <Pressable
             style={s.avatarBtn}
@@ -41,7 +41,7 @@ export function AppHeader({ showBack = false }: Props) {
                 contentFit="cover"
               />
             ) : (
-              <Octicons name="person" size={18} color="rgba(255,255,255,0.85)" />
+              <Octicons name="person" size={18} color={Colors.textSecondary} />
             )}
           </Pressable>
         </View>
@@ -57,13 +57,13 @@ export function AppHeader({ showBack = false }: Props) {
 
 const s = StyleSheet.create({
   hero: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.background,
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 18,
     gap: 12,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
     marginBottom: 4,
   },
   row: {
@@ -86,7 +86,7 @@ const s = StyleSheet.create({
   title: {
     fontSize: 24,
     fontFamily: Fonts.headingBold,
-    color: "#fff",
+    color: Colors.text,
     letterSpacing: -0.5,
   },
   actions: {
@@ -98,32 +98,34 @@ const s = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 11,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
+    borderColor: Colors.border,
   },
   avatarBtn: {
     width: 38,
     height: 38,
     borderRadius: 11,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
+    borderColor: Colors.border,
     overflow: "hidden",
   },
   avatar: { width: 38, height: 38 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Colors.surface,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 11,
     gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   searchPlaceholder: {
     fontSize: 14,
