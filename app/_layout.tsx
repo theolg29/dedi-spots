@@ -40,6 +40,7 @@ export const unstable_settings = { initialRouteName: "(tabs)" };
 
 export default function RootLayout() {
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
 
   const [fontsLoaded, fontError] = useFonts({
     Parkinsans_400Regular,
@@ -70,8 +71,17 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError, isOnboarded]);
 
-  // Prevent rendering stack until initial route and fonts are resolved
-  if ((!fontsLoaded && !fontError) || isOnboarded === null) {
+  // Safety timeout: never stay stuck on splash screen more than 3s
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setTimedOut(true);
+      SplashScreen.hideAsync().catch(() => {});
+    }, 3000);
+    return () => clearTimeout(id);
+  }, []);
+
+  // Block render until fonts + onboarding state are ready — but never past the 3s timeout
+  if (((!fontsLoaded && !fontError) || isOnboarded === null) && !timedOut) {
     return null;
   }
 
@@ -79,7 +89,7 @@ export default function RootLayout() {
     <ConvexAuthProvider client={convex} storage={secureStorage}>
       <SafeAreaProvider>
         <SystemBars style="dark" />
-        <Stack initialRouteName={isOnboarded ? "(tabs)" : "onboarding"}>
+        <Stack initialRouteName={isOnboarded === true ? "(tabs)" : "onboarding"}>
           <Stack.Screen name="(tabs)"         options={{ headerShown: false }} />
           <Stack.Screen name="onboarding"     options={{ headerShown: false }} />
           <Stack.Screen name="spot/[id]"      options={{ headerShown: false, animation: "slide_from_right" }} />

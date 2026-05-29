@@ -53,6 +53,24 @@ npx expo start --dev-client
 
 Scanne le QR code avec l'app installée (pas Expo Go).
 
+## Problème : app bloquée sur le splash screen après reconnexion USB
+
+Quand tu déconnectes puis reconnectes le câble, le tunnel ADB se coupe. Le bundle JS ne charge plus.
+
+**Fix** : relancer le port forwarding après chaque reconnexion :
+
+```bash
+adb reverse tcp:8081 tcp:8081
+```
+
+Pour ne pas avoir à le retaper, crée un alias permanent :
+
+```bash
+echo 'alias adbm="adb reverse tcp:8081 tcp:8081"' >> ~/.zshrc && source ~/.zshrc
+```
+
+Ensuite tu tapes juste `adbm` dans le terminal.
+
 ## Notes
 
 - Le dev build contient le scheme `spots://` → l'OAuth Google fonctionne

@@ -2,8 +2,9 @@ import { Octicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Image } from "expo-image";
+import * as Location from "expo-location";
 import { router, useLocalSearchParams } from "expo-router";
-import { ActivityIndicator, Animated, Dimensions, Pressable, ScrollView, Share, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { ActionSheetIOS, ActivityIndicator, Alert, Animated, Dimensions, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from "react-native";
 import { Camera, Map as MapView, Marker } from "@maplibre/maplibre-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -218,6 +219,17 @@ const w = StyleSheet.create({
   },
 });
 
+function getDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function StarRating({ rating }: { rating: number }) {
   return (
     <View style={s.starRow}>
@@ -227,6 +239,87 @@ function StarRating({ rating }: { rating: number }) {
         </Text>
       ))}
     </View>
+  );
+}
+
+function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <View style={s.starRow}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Pressable key={i} onPress={() => onChange(i)} hitSlop={8}>
+          <Text style={[s.starLg, { color: i <= value ? Colors.accent : "#E0DDD8" }]}>★</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function ReviewModal({
+  visible,
+  onClose,
+  onSubmit,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (rating: number, comment: string) => Promise<void>;
+}) {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (rating === 0) {
+      Alert.alert("Note requise", "Sélectionne une note de 1 à 5 étoiles.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onSubmit(rating, comment.trim());
+      setRating(0);
+      setComment("");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={rm.overlay} onPress={onClose} />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={rm.wrapper}>
+        <View style={rm.sheet}>
+          <View style={rm.handle} />
+          <Text style={rm.title}>Laisser un avis</Text>
+          <Text style={rm.subtitle}>Tu es sur place — partage ton expérience !</Text>
+
+          <View style={rm.starsRow}>
+            <StarPicker value={rating} onChange={setRating} />
+          </View>
+
+          <TextInput
+            style={rm.input}
+            placeholder="Commentaire (optionnel)"
+            placeholderTextColor={Colors.muted}
+            value={comment}
+            onChangeText={setComment}
+            multiline
+            maxLength={500}
+            returnKeyType="done"
+          />
+
+          <Pressable
+            style={({ pressed }) => [rm.submitBtn, pressed && { opacity: 0.85 }, submitting && { opacity: 0.6 }]}
+            onPress={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={rm.submitText}>Valider mon check-in</Text>
+            )}
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -317,13 +410,17 @@ export default function SpotDetailScreen() {
   const insets = useSafeAreaInsets();
   const spot = useQuery(api.spots.getById, { id: id as Id<"spots"> });
   const favoritedIds = useQuery(api.favorites.getFavoritedIds);
+  const userReview = useQuery(api.spots.getUserReview, { spotId: id as Id<"spots"> });
   const addToList = useMutation(api.favorites.addToList);
   const removeFav = useMutation(api.favorites.remove);
+  const addReview = useMutation(api.spots.addReview);
 
   const { isAuthenticated } = useConvexAuth();
   const isFavorited = favoritedIds?.includes(id as Id<"spots">) ?? false;
   const [photoIndex, setPhotoIndex] = useState(0);
   const [mapCardWidth, setMapCardWidth] = useState(0);
+  const [checkInLoading, setCheckInLoading] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   const onMapCardLayout = (e: LayoutChangeEvent) => setMapCardWidth(e.nativeEvent.layout.width);
 
   const handleToggleFavorite = async () => {
@@ -347,6 +444,85 @@ export default function SpotDetailScreen() {
   const handleOpenMap = () => {
     if (!spot) return;
     router.push({ pathname: "/(tabs)/explore", params: { spotId: spot._id } });
+  };
+
+  const handleNavigate = async () => {
+    if (!spot) return;
+    const { latitude: lat, longitude: lng, title } = spot;
+    const label = encodeURIComponent(title);
+
+    if (Platform.OS === "ios") {
+      const apps: { name: string; url: string }[] = [
+        { name: "Apple Plans", url: `maps://?daddr=${lat},${lng}` },
+        { name: "Google Maps", url: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving` },
+        { name: "Waze", url: `waze://?ll=${lat},${lng}&navigate=yes` },
+      ];
+      const available = await Promise.all(
+        apps.map(async (a) => ({ ...a, ok: await Linking.canOpenURL(a.url) }))
+      );
+      const options = available.filter((a) => a.ok);
+      if (options.length === 0) {
+        Linking.openURL(`https://maps.google.com/maps?daddr=${lat},${lng}`);
+        return;
+      }
+      if (options.length === 1) {
+        Linking.openURL(options[0].url);
+        return;
+      }
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: "Ouvrir avec…",
+          options: [...options.map((a) => a.name), "Annuler"],
+          cancelButtonIndex: options.length,
+        },
+        (idx) => {
+          if (idx < options.length) Linking.openURL(options[idx].url);
+        }
+      );
+    } else {
+      const url = `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
+      Linking.canOpenURL(url).then((ok) => {
+        Linking.openURL(ok ? url : `https://maps.google.com/maps?daddr=${lat},${lng}`);
+      });
+    }
+  };
+
+  const handleCheckIn = async () => {
+    if (!isAuthenticated) { router.push("/onboarding"); return; }
+    if (userReview !== undefined && userReview !== null) return;
+    if (!spot) return;
+    setCheckInLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Localisation requise", "Autorise la localisation pour valider ton check-in.");
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const dist = getDistanceMeters(
+        loc.coords.latitude,
+        loc.coords.longitude,
+        spot.latitude,
+        spot.longitude
+      );
+      if (dist > 100) {
+        const distLabel = dist < 1000 ? `${Math.round(dist)} m` : `${(dist / 1000).toFixed(1)} km`;
+        Alert.alert(
+          "Trop loin 📍",
+          `Tu es à ${distLabel} du spot. Tu dois être à moins de 100 m pour laisser un avis.`
+        );
+        return;
+      }
+      setShowReviewModal(true);
+    } finally {
+      setCheckInLoading(false);
+    }
+  };
+
+  const handleSubmitReview = async (rating: number, comment: string) => {
+    await addReview({ spotId: id as Id<"spots">, rating, comment: comment || undefined });
+    setShowReviewModal(false);
+    Alert.alert("Check-in validé ✓", "Merci pour ton avis !");
   };
 
   if (spot === undefined) {
@@ -407,7 +583,7 @@ export default function SpotDetailScreen() {
             onPress={() => router.back()}
             hitSlop={8}
           >
-            <Text style={s.backBtnText}>‹</Text>
+            <Octicons name="chevron-left" size={22} color={Colors.text} />
           </Pressable>
           <View style={[s.heroActions, { top: insets.top + 12 }]}>
             <Pressable style={s.heroActionBtn} onPress={handleToggleFavorite} hitSlop={8}>
@@ -480,6 +656,15 @@ export default function SpotDetailScreen() {
             </Pressable>
           </View>
 
+          {/* Navigate button */}
+          <Pressable
+            style={({ pressed }) => [s.navBtn, pressed && { opacity: 0.75 }]}
+            onPress={handleNavigate}
+          >
+            <Octicons name="location" size={16} color={Colors.primary} />
+            <Text style={s.navBtnText}>Itinéraire</Text>
+          </Pressable>
+
           <Pressable
             style={({ pressed }) => [s.creatorRow, pressed && { opacity: 0.75 }]}
             onPress={() => router.push({ pathname: "/user/[id]", params: { id: spot.creatorId } })}
@@ -492,13 +677,13 @@ export default function SpotDetailScreen() {
             <Text style={s.mutedText}>{createdDate}</Text>
           </Pressable>
 
-          {/* Weather block */}
-          <WeatherBlock latitude={spot.latitude} longitude={spot.longitude} />
-
           <View style={s.divider} />
 
           <Text style={s.sectionTitle}>Description</Text>
           <Text style={s.description}>{spot.description}</Text>
+
+          {/* Weather block */}
+          <WeatherBlock latitude={spot.latitude} longitude={spot.longitude} />
 
           <View style={s.divider} />
 
@@ -523,12 +708,31 @@ export default function SpotDetailScreen() {
 
       {/* Check-in floating button */}
       <View style={[s.fab, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable
-          style={({ pressed }) => [s.fabBtn, pressed && { opacity: 0.85 }]}
-        >
-          <Text style={s.fabText}>Check-in — Laisser un avis</Text>
-        </Pressable>
+        {userReview ? (
+          <View style={[s.fabBtn, s.fabBtnDone]}>
+            <Octicons name="check-circle-fill" size={16} color={Colors.primary} />
+            <Text style={[s.fabText, { color: Colors.primary }]}>Check-in effectué</Text>
+          </View>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [s.fabBtn, pressed && { opacity: 0.85 }, checkInLoading && { opacity: 0.7 }]}
+            onPress={handleCheckIn}
+            disabled={checkInLoading}
+          >
+            {checkInLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={s.fabText}>Check-in — Laisser un avis</Text>
+            )}
+          </Pressable>
+        )}
       </View>
+
+      <ReviewModal
+        visible={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        onSubmit={handleSubmitReview}
+      />
     </View>
   );
 }
@@ -549,12 +753,6 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.94)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  backBtnText: {
-    fontSize: 22,
-    fontFamily: Fonts.headingBold,
-    color: Colors.text,
-    lineHeight: 28,
   },
   heroActions: {
     position: "absolute",
@@ -662,7 +860,15 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
 
-  creatorRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
+  creatorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 20,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+  },
   creatorName: { fontSize: 14, fontFamily: Fonts.bodySemiBold, color: Colors.text },
   avatarFallback: {
     backgroundColor: Colors.primary,
@@ -691,7 +897,12 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 16,
   },
-  review: { marginBottom: 20 },
+  review: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+  },
   reviewHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
   reviewName: { fontSize: 13, fontFamily: Fonts.bodySemiBold, color: Colors.text },
   reviewDate: { fontSize: 11, fontFamily: Fonts.body, color: Colors.muted },
@@ -703,6 +914,25 @@ const s = StyleSheet.create({
     paddingLeft: 44,
   },
   emptyReviews: { alignItems: "center", paddingVertical: 28 },
+
+  starLg: { fontSize: 32 },
+
+  navBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: 999,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  navBtnText: {
+    color: Colors.primary,
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 14,
+  },
 
   fab: {
     position: "absolute",
@@ -717,9 +947,83 @@ const s = StyleSheet.create({
   },
   fabBtn: {
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: 999,
     paddingVertical: 16,
     alignItems: "center",
   },
   fabText: { color: "#fff", fontFamily: Fonts.bodySemiBold, fontSize: 15 },
+  fabBtnDone: {
+    backgroundColor: Colors.tagBg,
+    flexDirection: "row",
+    gap: 8,
+  },
+});
+
+const rm = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  wrapper: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  sheet: {
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 40,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 20,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 13,
+    fontFamily: Fonts.body,
+    color: Colors.muted,
+    marginBottom: 24,
+  },
+  starsRow: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  input: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: Colors.text,
+    minHeight: 80,
+    textAlignVertical: "top",
+    marginBottom: 20,
+  },
+  submitBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 999,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  submitText: {
+    color: "#fff",
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 15,
+  },
 });

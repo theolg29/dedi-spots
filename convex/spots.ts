@@ -98,6 +98,46 @@ export const create = mutation({
   },
 });
 
+export const getUserReview = query({
+  args: { spotId: v.id("spots") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    return await ctx.db
+      .query("reviews")
+      .withIndex("by_spot_and_user", (q) =>
+        q.eq("spotId", args.spotId).eq("userId", userId)
+      )
+      .unique();
+  },
+});
+
+export const addReview = mutation({
+  args: {
+    spotId: v.id("spots"),
+    rating: v.number(),
+    comment: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Non authentifié");
+    const existing = await ctx.db
+      .query("reviews")
+      .withIndex("by_spot_and_user", (q) =>
+        q.eq("spotId", args.spotId).eq("userId", userId)
+      )
+      .unique();
+    if (existing) throw new Error("Avis déjà laissé pour ce spot");
+    return await ctx.db.insert("reviews", {
+      spotId: args.spotId,
+      userId,
+      rating: args.rating,
+      comment: args.comment ?? undefined,
+      createdAt: Date.now(),
+    });
+  },
+});
+
 export const getById = query({
   args: { id: v.id("spots") },
   handler: async (ctx, args) => {
