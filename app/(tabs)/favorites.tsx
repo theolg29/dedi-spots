@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -119,6 +119,7 @@ function ListRow({
 }
 
 export default function FavoritesScreen() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
   const overview = useQuery(api.favorites.getOverview);
   const defaultSpots = useQuery(api.favorites.getDefaultFavoriteSpots);
   const createList = useMutation(api.favorites.createList);
@@ -137,6 +138,41 @@ export default function FavoritesScreen() {
     overview !== null &&
     overview.default.count === 0 &&
     overview.lists.length === 0;
+
+  if (!isLoading && !isAuthenticated) {
+    return (
+      <SafeAreaView edges={["top"]} style={s.screen}>
+        <View style={s.header}>
+          <View style={s.headerLeft}>
+            <Text style={s.headerTitle}>Spots</Text>
+          </View>
+          <View style={s.headerRight}>
+            <Pressable style={s.iconBtn} onPress={() => router.push("/modal")}>
+              <Octicons name="bell" size={18} color="#fff" />
+            </Pressable>
+            <Pressable style={s.iconBtn} onPress={() => router.push("/search")}>
+              <Octicons name="search" size={18} color="#fff" />
+            </Pressable>
+          </View>
+        </View>
+        <View style={[s.scroll, s.gateContainer]}>
+          <View style={s.gateIcon}>
+            <Octicons name="lock" size={32} color={Colors.primary} />
+          </View>
+          <Text style={s.gateTitle}>Connecte-toi pour accéder à tes favoris</Text>
+          <Text style={s.gateSub}>
+            Tes coups de cœur et tes listes sont sauvegardés sur ton compte.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [s.gateBtn, pressed && { opacity: 0.85 }]}
+            onPress={() => router.push("/onboarding")}
+          >
+            <Text style={s.gateBtnText}>Se connecter</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={["top"]} style={s.screen}>
@@ -495,6 +531,50 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+  },
+
+  // ── Auth gate ────────────────────────────────────────────
+  gateContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 40,
+    gap: 12,
+  },
+  gateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.tagBg,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  gateTitle: {
+    fontSize: 20,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    textAlign: "center",
+    letterSpacing: -0.3,
+  },
+  gateSub: {
+    fontSize: 14,
+    fontFamily: Fonts.body,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  gateBtn: {
+    marginTop: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 999,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+  },
+  gateBtnText: {
+    color: "#fff",
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 15,
   },
 
   // ── States ───────────────────────────────────────────────
