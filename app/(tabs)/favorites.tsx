@@ -454,7 +454,7 @@ const s = StyleSheet.create({
     paddingBottom: 4,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: Fonts.headingBold,
     color: Colors.text,
     letterSpacing: -0.3,
@@ -463,7 +463,7 @@ const s = StyleSheet.create({
     paddingBottom: 14,
   },
   sectionTitle2: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: Fonts.headingBold,
     color: Colors.text,
     letterSpacing: -0.3,

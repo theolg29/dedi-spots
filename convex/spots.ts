@@ -179,3 +179,72 @@ export const getById = query({
     return { ...spot, photos: photoUrls, creator, reviews: reviewsWithUser, avgRating, reviewCount };
   },
 });
+
+export const mySpots = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const spots = await ctx.db
+      .query("spots")
+      .withIndex("by_creator", (q) => q.eq("creatorId", userId))
+      .order("desc")
+      .collect();
+    return await Promise.all(
+      spots.map(async (spot) => {
+        const { avgRating, reviewCount } = await withRating(ctx, spot._id);
+        const firstPhoto =
+          spot.photos.length > 0
+            ? spot.photos[0].startsWith("http")
+              ? spot.photos[0]
+              : await ctx.storage.getUrl(spot.photos[0] as Id<"_storage">)
+            : null;
+        return {
+          _id: spot._id,
+          title: spot.title,
+          tags: spot.tags,
+          photo: firstPhoto ?? null,
+          avgRating,
+          reviewCount,
+        };
+      })
+    );
+  },
+});
+
+export const myVisitedSpots = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const reviews = await ctx.db
+      .query("reviews")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const results = await Promise.all(
+      reviews.map(async (review) => {
+        const spot = await ctx.db.get(review.spotId);
+        if (!spot) return null;
+        const { avgRating, reviewCount } = await withRating(ctx, spot._id);
+        const firstPhoto =
+          spot.photos.length > 0
+            ? spot.photos[0].startsWith("http")
+              ? spot.photos[0]
+              : await ctx.storage.getUrl(spot.photos[0] as Id<"_storage">)
+            : null;
+        return {
+          _id: spot._id,
+          title: spot.title,
+          tags: spot.tags,
+          photo: firstPhoto ?? null,
+          avgRating,
+          reviewCount,
+        };
+      })
+    );
+    return results.filter(
+      (s): s is { _id: Id<"spots">; title: string; tags: string[]; photo: string | null; avgRating: number; reviewCount: number } =>
+        s !== null
+    );
+  },
+});

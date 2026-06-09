@@ -43,13 +43,78 @@ function GuestView() {
   );
 }
 
+type SpotItem = {
+  _id: string;
+  title: string;
+  tags: string[];
+  photo: string | null;
+  avgRating: number;
+  reviewCount: number;
+};
+
+function SpotRow({ spot }: { spot: SpotItem }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [s.spotRow, pressed && { opacity: 0.88 }]}
+      onPress={() => router.push(`/spot/${spot._id}`)}
+    >
+      {spot.photo ? (
+        <Image source={{ uri: spot.photo }} style={s.spotThumb} contentFit="cover" />
+      ) : (
+        <View style={[s.spotThumb, s.spotThumbEmpty]}>
+          <Octicons name="image" size={18} color={Colors.muted} />
+        </View>
+      )}
+      <View style={s.spotInfo}>
+        <Text style={s.spotTitle} numberOfLines={1}>{spot.title}</Text>
+        <View style={s.spotMeta}>
+          {spot.avgRating > 0 && (
+            <View style={s.ratingPill}>
+              <Text style={s.ratingPillStar}>★</Text>
+              <Text style={s.ratingPillVal}>{spot.avgRating.toFixed(1)}</Text>
+            </View>
+          )}
+          {spot.tags.length > 0 && (
+            <Text style={s.spotTag}>{spot.tags[0]}</Text>
+          )}
+        </View>
+      </View>
+      <Octicons name="chevron-right" size={16} color={Colors.muted} />
+    </Pressable>
+  );
+}
+
+function SpotList({ spots, emptyMessage }: { spots: SpotItem[] | undefined; emptyMessage: string }) {
+  if (spots === undefined) {
+    return <ActivityIndicator color={Colors.primary} style={{ marginTop: 24 }} />;
+  }
+  if (spots.length === 0) {
+    return (
+      <View style={s.emptyBox}>
+        <Text style={s.emptyText}>{emptyMessage}</Text>
+      </View>
+    );
+  }
+  return (
+    <View>
+      {spots.map((spot) => (
+        <SpotRow key={spot._id} spot={spot} />
+      ))}
+    </View>
+  );
+}
+
 function ProfileView() {
   const { signOut } = useAuthActions();
   const viewer = useQuery(api.users.viewer);
   const myProfile = useQuery(api.users.getMyProfile);
+  const myStats = useQuery(api.users.myStats);
+  const mySpots = useQuery(api.spots.mySpots);
+  const myVisited = useQuery(api.spots.myVisitedSpots);
   const generateUploadUrl = useMutation(api.users.generateUploadUrl);
   const updateAvatar = useMutation(api.users.updateAvatar);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [activeTab, setActiveTab] = useState<"creations" | "visited" | "favorites">("creations");
 
   const initial = viewer?.name?.charAt(0).toUpperCase() ?? "?";
   const avatarUrl = myProfile?.avatarUrl ?? viewer?.image ?? null;
@@ -87,6 +152,12 @@ function ProfileView() {
     }
   };
 
+  const tabs = [
+    { key: "creations" as const, label: "Créations" },
+    { key: "visited" as const, label: "Visités" },
+    { key: "favorites" as const, label: "Favoris" },
+  ];
+
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
       <View style={s.profileHero}>
@@ -115,26 +186,68 @@ function ProfileView() {
 
       <View style={s.statsRow}>
         <View style={s.stat}>
-          <Text style={s.statValue}>0</Text>
+          {myStats === undefined ? (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          ) : (
+            <Text style={s.statValue}>{myStats.spotsCount}</Text>
+          )}
           <Text style={s.statLabel}>Spots</Text>
         </View>
         <View style={s.statDivider} />
         <View style={s.stat}>
-          <Text style={s.statValue}>0</Text>
+          {myStats === undefined ? (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          ) : (
+            <Text style={s.statValue}>{myStats.checkInsCount}</Text>
+          )}
           <Text style={s.statLabel}>Check-ins</Text>
         </View>
         <View style={s.statDivider} />
         <View style={s.stat}>
-          <Text style={s.statValue}>0</Text>
+          {myStats === undefined ? (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          ) : (
+            <Text style={s.statValue}>{myStats.favoritesCount}</Text>
+          )}
           <Text style={s.statLabel}>Favoris</Text>
         </View>
       </View>
 
-      <View style={s.section}>
-        <Text style={s.sectionTitle}>Mes spots</Text>
-        <View style={s.emptyBox}>
-          <Text style={s.emptyText}>Tu n'as pas encore partagé de spot.</Text>
-        </View>
+      <View style={s.tabRow}>
+        {tabs.map((tab) => (
+          <Pressable
+            key={tab.key}
+            style={[s.tabBtn, activeTab === tab.key && s.tabBtnActive]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Text style={[s.tabLabel, activeTab === tab.key && s.tabLabelActive]}>
+              {tab.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={s.tabContent}>
+        {activeTab === "creations" && (
+          <SpotList spots={mySpots} emptyMessage="Tu n'as pas encore partagé de spot." />
+        )}
+        {activeTab === "visited" && (
+          <SpotList spots={myVisited} emptyMessage="Tu n'as encore visité aucun spot." />
+        )}
+        {activeTab === "favorites" && (
+          <View style={s.favoritesTab}>
+            <Text style={s.favoritesCount}>
+              {myStats?.favoritesCount ?? 0} favori{(myStats?.favoritesCount ?? 0) !== 1 ? "s" : ""}
+            </Text>
+            <Pressable
+              style={({ pressed }) => [s.favoritesBtn, pressed && { opacity: 0.75 }]}
+              onPress={() => router.push("/(tabs)/favorites")}
+            >
+              <Text style={s.favoritesBtnText}>Voir mes favoris</Text>
+              <Octicons name="arrow-right" size={15} color="#fff" />
+            </Pressable>
+          </View>
+        )}
       </View>
 
       <Pressable
@@ -157,9 +270,9 @@ export default function ProfileScreen() {
         {isAuthenticated && (
           <Pressable
             onPress={() => router.push("/settings")}
-            style={({ pressed }) => [s.settingsBtn, pressed && { opacity: 0.6 }]}
+            style={({ pressed }) => [s.settingsBtn, pressed && { opacity: 0.7 }]}
           >
-            <Octicons name="gear" size={22} color={Colors.text} />
+            <Octicons name="gear" size={18} color={Colors.text} />
           </Pressable>
         )}
       </View>
@@ -186,9 +299,20 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  title: { fontSize: 34, fontFamily: Fonts.headingBold, color: Colors.text, letterSpacing: -0.5 },
-  settingsBtn: { padding: 4 },
+  title: { fontSize: 28, fontFamily: Fonts.headingBold, color: Colors.text, letterSpacing: -0.5 },
+  settingsBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   guestScroll: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 40 },
@@ -277,13 +401,104 @@ const s = StyleSheet.create({
   statLabel: { fontSize: 12, fontFamily: Fonts.body, color: Colors.muted },
   statDivider: { width: 1, backgroundColor: Colors.border },
 
-  section: { paddingHorizontal: 20, marginBottom: 24 },
-  sectionTitle: {
-    fontSize: 17,
-    fontFamily: Fonts.headingBold,
+  tabRow: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    alignItems: "center",
+  },
+  tabBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.bodyMedium,
+    color: Colors.textSecondary,
+  },
+  tabLabelActive: {
+    color: "#fff",
+  },
+  tabContent: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  spotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: 12,
+  },
+  spotThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  spotThumbEmpty: {
+    backgroundColor: Colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  spotInfo: { flex: 1 },
+  spotTitle: {
+    fontSize: 15,
+    fontFamily: Fonts.bodyMedium,
     color: Colors.text,
-    letterSpacing: -0.2,
-    marginBottom: 12,
+    marginBottom: 4,
+  },
+  spotMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
+  ratingPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#FFF8EC",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
+  ratingPillStar: { fontSize: 11, color: Colors.accent },
+  ratingPillVal: { fontSize: 12, fontFamily: Fonts.bodyMedium, color: Colors.text },
+  spotTag: {
+    fontSize: 12,
+    fontFamily: Fonts.body,
+    color: Colors.tagText,
+    backgroundColor: Colors.tagBg,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
+  favoritesTab: {
+    paddingVertical: 24,
+    alignItems: "center",
+    gap: 16,
+  },
+  favoritesCount: {
+    fontSize: 16,
+    fontFamily: Fonts.body,
+    color: Colors.textSecondary,
+  },
+  favoritesBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
+  favoritesBtnText: {
+    fontSize: 15,
+    fontFamily: Fonts.bodyMedium,
+    color: "#fff",
   },
   emptyBox: {
     borderWidth: 1,
@@ -291,6 +506,7 @@ const s = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     alignItems: "center",
+    marginTop: 8,
   },
   emptyText: {
     fontSize: 14,

@@ -169,6 +169,8 @@ userProfiles  { userId, username?, firstName?, lastName?, country?,
 - Pas de modération de contenu prévue pour le MVP.
 - **Icônes** : utiliser uniquement `Octicons` de `@expo/vector-icons` (`import { Octicons } from "@expo/vector-icons"`). Ne pas utiliser Ionicons, MaterialIcons ou d'autres sets. Si une icône manque dans Octicons, chercher l'équivalent le plus proche dans ce set.
 
+- Toujours proposer de faire un commit pour une grosse feature, ne jamais push sans confirmation
+
 ---
 
 <!-- convex-ai-start -->

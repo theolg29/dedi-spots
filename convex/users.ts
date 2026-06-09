@@ -235,6 +235,24 @@ export const checkUsername = query({
   },
 });
 
+export const myStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return { spotsCount: 0, checkInsCount: 0, favoritesCount: 0 };
+    const [spots, reviews, favorites] = await Promise.all([
+      ctx.db.query("spots").withIndex("by_creator", (q) => q.eq("creatorId", userId)).collect(),
+      ctx.db.query("reviews").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
+      ctx.db.query("favorites").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
+    ]);
+    return {
+      spotsCount: spots.length,
+      checkInsCount: reviews.length,
+      favoritesCount: favorites.length,
+    };
+  },
+});
+
 export const createProfile = mutation({
   args: {
     username: v.string(),

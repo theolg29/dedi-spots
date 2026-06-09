@@ -116,7 +116,7 @@ export default function FeedScreen() {
   const spots = useQuery(api.spots.list);
   const myProfile = useQuery(api.users.getMyProfile);
   const favoritedIds = useQuery(api.favorites.getFavoritedIds);
-  const seed = useMutation(api.seed.run);
+
   const removeFav = useMutation(api.favorites.remove);
   const [refreshing, setRefreshing] = useState(false);
   const [sheetSpotId, setSheetSpotId] = useState<Id<"spots"> | null>(null);
@@ -239,12 +239,6 @@ export default function FeedScreen() {
               <Text style={[s.mutedText, { textAlign: "center" }]}>
                 Sois le premier à partager un lieu incroyable.
               </Text>
-              <Pressable
-                style={({ pressed }) => [s.seedBtn, pressed && { opacity: 0.8 }]}
-                onPress={() => seed({})}
-              >
-                <Text style={s.seedBtnText}>Charger les spots de démo</Text>
-              </Pressable>
             </View>
           )}
           {spots?.map((spot) => (
@@ -379,7 +373,7 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingVertical: 9,
-    borderRadius: 10,
+    borderRadius: 999,
   },
   heroBtnText: {
     fontSize: 13,
@@ -475,18 +469,6 @@ const s = StyleSheet.create({
     fontSize: 18,
     fontFamily: Fonts.headingBold,
     color: Colors.text,
-  },
-  seedBtn: {
-    marginTop: 8,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 13,
-    borderRadius: 24,
-  },
-  seedBtnText: {
-    color: "#fff",
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: 15,
   },
   card: {
     borderRadius: 14,

@@ -22,7 +22,50 @@ import { api } from "@/convex/_generated/api";
 import { Colors, Fonts } from "@/constants/theme";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
-const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+type MapStyleKey = "classic" | "satellite" | "hybrid";
+
+const CLASSIC_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+
+const SATELLITE_SPEC = {
+  version: 8,
+  sources: {
+    sat: {
+      type: "raster",
+      tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+      tileSize: 256,
+      attribution: "© Esri, Maxar, Earthstar Geographics",
+    },
+  },
+  layers: [{ id: "sat", type: "raster", source: "sat" }],
+};
+
+const HYBRID_SPEC = {
+  version: 8,
+  sources: {
+    sat: {
+      type: "raster",
+      tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+      tileSize: 256,
+    },
+    roads: {
+      type: "raster",
+      tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"],
+      tileSize: 256,
+    },
+    labels: {
+      type: "raster",
+      tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"],
+      tileSize: 256,
+      attribution: "© Esri",
+    },
+  },
+  layers: [
+    { id: "sat", type: "raster", source: "sat" },
+    { id: "roads", type: "raster", source: "roads" },
+    { id: "labels", type: "raster", source: "labels" },
+  ],
+};
+
 const DEFAULT_CENTER: [number, number] = [1.888334, 46.603354]; // [lng, lat]
 const DEFAULT_ZOOM = 5;
 const SHEET_HEIGHT = 108;
@@ -100,6 +143,7 @@ export default function MapScreen() {
   const [selectedSpot, setSelectedSpot] = useState<SpotItem | null>(null);
   const [locating, setLocating] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [mapStyleKey, setMapStyleKey] = useState<MapStyleKey>("classic");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -261,6 +305,12 @@ export default function MapScreen() {
     openSheet(spot);
   };
 
+  const activeStyle = useMemo(() => {
+    if (mapStyleKey === "classic") return CLASSIC_STYLE;
+    const spec = mapStyleKey === "satellite" ? SATELLITE_SPEC : HYBRID_SPEC;
+    return `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+  }, [mapStyleKey]);
+
   const isLoading = rawSpots === undefined;
   const spotCount = filteredSpots.length;
   const btnBottom = 16;
@@ -275,7 +325,7 @@ export default function MapScreen() {
     <View style={s.container}>
       <MapView
         style={StyleSheet.absoluteFill}
-        mapStyle={MAP_STYLE}
+        mapStyle={activeStyle}
         onPress={handleMapPress}
         onRegionDidChange={handleRegionDidChange}
         logo={false}
@@ -385,6 +435,21 @@ export default function MapScreen() {
           </View>
         </SafeAreaView>
       )}
+
+      {/* Map style toggle */}
+      <View style={[s.styleToggle, { bottom: btnBottom }]}>
+        {(["classic", "satellite", "hybrid"] as const).map((key) => (
+          <TouchableOpacity
+            key={key}
+            style={[s.stylePill, mapStyleKey === key && s.stylePillActive]}
+            onPress={() => setMapStyleKey(key)}
+          >
+            <Text style={[s.stylePillText, mapStyleKey === key && s.stylePillTextActive]}>
+              {key === "classic" ? "Carte" : key === "satellite" ? "Satellite" : "Hybride"}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       {/* Location button */}
       <TouchableOpacity
@@ -518,6 +583,35 @@ const s = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
   },
   permText: { fontSize: 12, fontFamily: Fonts.bodyMedium, color: Colors.text },
+  styleToggle: {
+    position: "absolute",
+    left: 16,
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6 },
+      android: { elevation: 3 },
+    }),
+  },
+  stylePill: {
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+  },
+  stylePillActive: {
+    backgroundColor: Colors.primary,
+  },
+  stylePillText: {
+    fontSize: 12,
+    fontFamily: Fonts.bodySemiBold,
+    color: Colors.text,
+  },
+  stylePillTextActive: {
+    color: "#fff",
+  },
   myLocBtn: {
     position: "absolute", right: 16, width: 44, height: 44, borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.95)", alignItems: "center", justifyContent: "center",

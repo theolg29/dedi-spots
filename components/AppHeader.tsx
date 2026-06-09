@@ -84,7 +84,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontFamily: Fonts.headingBold,
     color: Colors.text,
     letterSpacing: -0.5,
@@ -95,9 +95,9 @@ const s = StyleSheet.create({
     gap: 10,
   },
   iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
@@ -105,9 +105,9 @@ const s = StyleSheet.create({
     borderColor: Colors.border,
   },
   avatarBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: Colors.surface,
     alignItems: "center",
     justifyContent: "center",
@@ -115,7 +115,7 @@ const s = StyleSheet.create({
     borderColor: Colors.border,
     overflow: "hidden",
   },
-  avatar: { width: 38, height: 38 },
+  avatar: { width: 40, height: 40 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",

@@ -8,7 +8,6 @@ import { Octicons } from "@expo/vector-icons";
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
 import { Colors, Fonts } from "@/constants/theme";
-import { AppHeader } from "@/components/AppHeader";
 import { CATEGORIES } from "../(tabs)/index";
 
 type SpotCard = Doc<"spots"> & { avgRating: number; reviewCount: number };
@@ -36,7 +35,13 @@ export default function CategoryScreen() {
 
   return (
     <SafeAreaView edges={["top"]} style={s.screen}>
-      <AppHeader showBack />
+      <View style={s.header}>
+        <Pressable onPress={() => router.back()} style={s.backBtn} hitSlop={8}>
+          <Octicons name="chevron-left" size={22} color={Colors.text} />
+        </Pressable>
+        <Text style={s.headerTitle} numberOfLines={1}>{decodedTag}</Text>
+        <View style={{ width: 40 }} />
+      </View>
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         {/* Titre de la catégorie */}
@@ -163,12 +168,40 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 11,
-    borderRadius: 12,
+    borderRadius: 999,
   },
   createBtnText: {
     color: "#fff",
     fontFamily: Fonts.bodySemiBold,
     fontSize: 14,
+  },
+
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    letterSpacing: -0.3,
+    textAlign: "center",
+    marginHorizontal: 8,
   },
 
   card: {

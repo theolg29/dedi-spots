@@ -232,7 +232,9 @@ export default function SettingsScreen() {
             onPress={() => router.back()}
             style={({ pressed }) => [s.headerSideBtn, pressed && { opacity: 0.5 }]}
           >
-            <Octicons name="arrow-left" size={20} color={Colors.text} />
+            <View style={s.backIconWrap}>
+              <Octicons name="chevron-left" size={22} color={Colors.text} />
+            </View>
           </Pressable>
         )}
 
@@ -466,19 +468,31 @@ const s = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   headerSideBtn: { minWidth: 60 },
   headerSideBtnRight: { alignItems: "flex-end" },
   headerTitle: {
     flex: 1,
     textAlign: "center",
-    fontSize: 17,
+    fontSize: 18,
     fontFamily: Fonts.headingBold,
     color: Colors.text,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
+  },
+  backIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
   cancelText: {
     fontSize: 15,
