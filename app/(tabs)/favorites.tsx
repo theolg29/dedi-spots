@@ -3,11 +3,12 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
+  Dimensions,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,7 +16,12 @@ import { Octicons } from "@expo/vector-icons";
 
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius, FloatingShadow } from "@/constants/theme";
+import { CreateListModal } from "@/components/CreateListModal";
+import { FavoriteSpotRow } from "@/components/FavoriteSpotRow";
+
+const GRID_GAP = 12;
+const GRID_ITEM_WIDTH = (Dimensions.get("window").width - 40 - GRID_GAP) / 2;
 
 type ListEntry = {
   _id: string;
@@ -24,59 +30,7 @@ type ListEntry = {
   cover: string | null;
 };
 
-type FavoriteSpot = {
-  _id: Id<"spots">;
-  title: string;
-  tags: string[];
-  photo: string | null;
-  avgRating: number;
-  reviewCount: number;
-};
-
-function SpotRow({ spot }: { spot: FavoriteSpot }) {
-  return (
-    <Pressable
-      style={({ pressed }) => [s.spotRow, pressed && { opacity: 0.88 }]}
-      onPress={() => router.push(`/spot/${spot._id}`)}
-    >
-      {spot.photo ? (
-        <Image source={{ uri: spot.photo }} style={s.spotRowThumb} contentFit="cover" />
-      ) : (
-        <View style={[s.spotRowThumb, s.spotRowThumbEmpty]}>
-          <Octicons name="image" size={20} color={Colors.muted} />
-        </View>
-      )}
-      <View style={s.spotRowInfo}>
-        <Text style={s.spotRowTitle} numberOfLines={1}>{spot.title}</Text>
-        <View style={s.spotRowMeta}>
-          {spot.avgRating > 0 && (
-            <View style={s.ratingPill}>
-              <Text style={s.ratingPillStar}>★</Text>
-              <Text style={s.ratingPillVal}>{spot.avgRating.toFixed(1)}</Text>
-            </View>
-          )}
-          {spot.reviewCount > 0 && (
-            <Text style={s.spotRowCount}>{spot.reviewCount} avis</Text>
-          )}
-        </View>
-        {spot.tags.length > 0 && (
-          <View style={s.spotRowTags}>
-            {spot.tags.slice(0, 2).map((tag) => (
-              <View key={tag} style={s.spotRowTag}>
-                <Text style={s.spotRowTagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
-      <View style={s.arrowBtn}>
-        <Octicons name="arrow-right" size={16} color={Colors.primary} />
-      </View>
-    </Pressable>
-  );
-}
-
-function ListRow({
+function ListGridItem({
   icon,
   iconBg,
   iconColor,
@@ -84,6 +38,7 @@ function ListRow({
   name,
   count,
   onPress,
+  onLongPress,
 }: {
   icon?: string;
   iconBg?: string;
@@ -92,28 +47,27 @@ function ListRow({
   name: string;
   count: number;
   onPress?: () => void;
+  onLongPress?: () => void;
 }) {
   return (
     <Pressable
-      style={({ pressed }) => [s.listRow, pressed && { backgroundColor: Colors.surface }]}
+      style={({ pressed }) => [s.gridItem, pressed && { opacity: 0.85 }]}
       onPress={onPress}
+      onLongPress={onLongPress}
     >
       {cover ? (
-        <Image source={{ uri: cover }} style={s.listThumb} contentFit="cover" />
+        <Image source={{ uri: cover }} style={s.gridImage} contentFit="cover" />
       ) : (
-        <View style={[s.listThumbEmpty, { backgroundColor: iconBg ?? Colors.surface }]}>
+        <View style={[s.gridImage, s.gridImageEmpty, { backgroundColor: iconBg ?? Colors.surface }]}>
           <Octicons
             name={(icon as any) ?? "list-unordered"}
-            size={22}
+            size={26}
             color={iconColor ?? Colors.muted}
           />
         </View>
       )}
-      <View style={s.listInfo}>
-        <Text style={s.listName}>{name}</Text>
-        <Text style={s.listCount}>{count} spot{count !== 1 ? "s" : ""}</Text>
-      </View>
-      <Octicons name="chevron-right" size={16} color={Colors.muted} />
+      <Text style={s.gridName} numberOfLines={1}>{name}</Text>
+      <Text style={s.gridCount}>{count} spot{count !== 1 ? "s" : ""}</Text>
     </Pressable>
   );
 }
@@ -123,14 +77,27 @@ export default function FavoritesScreen() {
   const overview = useQuery(api.favorites.getOverview);
   const defaultSpots = useQuery(api.favorites.getDefaultFavoriteSpots);
   const createList = useMutation(api.favorites.createList);
+  const deleteList = useMutation(api.favorites.deleteList);
   const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
 
-  const handleCreateList = async () => {
-    if (!newName.trim()) return;
-    await createList({ name: newName.trim() });
-    setNewName("");
+  const handleCreateList = async (name: string) => {
+    await createList({ name });
     setCreating(false);
+  };
+
+  const handleDeleteList = (list: ListEntry) => {
+    Alert.alert(
+      `Supprimer "${list.name}" ?`,
+      "Les spots qu'elle contient resteront dans tes coups de cœur.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: () => deleteList({ listId: list._id as Id<"favoriteLists"> }),
+        },
+      ]
+    );
   };
 
   const isEmpty =
@@ -142,19 +109,6 @@ export default function FavoritesScreen() {
   if (!isLoading && !isAuthenticated) {
     return (
       <SafeAreaView edges={["top"]} style={s.screen}>
-        <View style={s.header}>
-          <View style={s.headerLeft}>
-            <Text style={s.headerTitle}>Spots</Text>
-          </View>
-          <View style={s.headerRight}>
-            <Pressable style={s.iconBtn} onPress={() => router.push("/modal")}>
-              <Octicons name="bell" size={18} color={Colors.text} />
-            </Pressable>
-            <Pressable style={s.iconBtn} onPress={() => router.push("/search")}>
-              <Octicons name="search" size={18} color={Colors.text} />
-            </Pressable>
-          </View>
-        </View>
         <View style={[s.scroll, s.gateContainer]}>
           <View style={s.gateIcon}>
             <Octicons name="lock" size={32} color={Colors.primary} />
@@ -176,21 +130,6 @@ export default function FavoritesScreen() {
 
   return (
     <SafeAreaView edges={["top"]} style={s.screen}>
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <View style={s.headerLeft}>
-          <Text style={s.headerTitle}>Spots</Text>
-        </View>
-        <View style={s.headerRight}>
-          <Pressable style={s.iconBtn} onPress={() => router.push("/modal")}>
-            <Octicons name="bell" size={18} color={Colors.text} />
-          </Pressable>
-          <Pressable style={s.iconBtn} onPress={() => router.push("/search")}>
-            <Octicons name="search" size={18} color={Colors.text} />
-          </Pressable>
-        </View>
-      </View>
-
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
@@ -200,45 +139,6 @@ export default function FavoritesScreen() {
         <View style={s.pageTitleRow}>
           <Text style={s.pageTitle}>Favoris</Text>
         </View>
-
-        {/* Create list button */}
-        {creating ? (
-          <View style={s.createRow}>
-            <TextInput
-              style={s.createInput}
-              placeholder="Nom de la liste…"
-              placeholderTextColor={Colors.muted}
-              value={newName}
-              onChangeText={setNewName}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleCreateList}
-            />
-            <Pressable
-              style={[s.confirmBtn, !newName.trim() && s.confirmBtnDisabled]}
-              onPress={handleCreateList}
-              disabled={!newName.trim()}
-            >
-              <Octicons name="check" size={16} color={Colors.text} />
-            </Pressable>
-            <Pressable style={s.cancelBtn} onPress={() => { setCreating(false); setNewName(""); }}>
-              <Octicons name="x" size={16} color={Colors.textSecondary} />
-            </Pressable>
-          </View>
-        ) : (
-          <Pressable
-            style={({ pressed }) => [s.createListBtn, pressed && { opacity: 0.82 }]}
-            onPress={() => setCreating(true)}
-          >
-            <View style={s.createListIcon}>
-              <Octicons name="plus" size={20} color={Colors.text} />
-            </View>
-            <Text style={s.createListLabel}>Créer une liste</Text>
-          </Pressable>
-        )}
-
-        {/* Divider */}
-        <View style={s.divider} />
 
         {/* Loading */}
         {overview === undefined && (
@@ -265,7 +165,7 @@ export default function FavoritesScreen() {
           <View style={s.section}>
             <Text style={s.sectionTitle}>Coups de cœurs</Text>
             {defaultSpots?.map((spot) => (
-              <SpotRow key={spot._id} spot={spot} />
+              <FavoriteSpotRow key={spot._id} spot={spot} />
             ))}
           </View>
         )}
@@ -274,57 +174,46 @@ export default function FavoritesScreen() {
         {overview && overview.lists.length > 0 && (
           <View>
             <Text style={s.sectionTitle2}>Mes listes</Text>
-            {overview.lists.map((list) => (
-              <ListRow
-                key={list._id}
-                icon="list-unordered"
-                iconBg={Colors.tagBg}
-                iconColor={Colors.primary}
-                cover={list.cover}
-                name={list.name}
-                count={list.count}
-              />
-            ))}
+            <View style={s.grid}>
+              {overview.lists.map((list) => (
+                <ListGridItem
+                  key={list._id}
+                  icon="list-unordered"
+                  iconBg={Colors.tagBg}
+                  iconColor={Colors.primary}
+                  cover={list.cover}
+                  name={list.name}
+                  count={list.count}
+                  onPress={() => router.push(`/favorites/${list._id}`)}
+                  onLongPress={() => handleDeleteList(list)}
+                />
+              ))}
+            </View>
           </View>
         )}
       </ScrollView>
+
+      <Pressable
+        style={({ pressed }) => [s.fab, pressed && { opacity: 0.88 }]}
+        onPress={() => setCreating(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Créer une liste"
+      >
+        <Octicons name="plus" size={16} color="#fff" />
+        <Text style={s.fabText}>Nouvelle liste</Text>
+      </Pressable>
+
+      <CreateListModal
+        visible={creating}
+        onClose={() => setCreating(false)}
+        onCreate={handleCreateList}
+      />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-
-  // ── Header ──────────────────────────────────────────────
-  header: {
-    backgroundColor: Colors.background,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  headerLeft: { flexDirection: "row", alignItems: "center" },
-  headerTitle: {
-    fontSize: 28,
-    fontFamily: Fonts.headingBold,
-    color: Colors.text,
-    letterSpacing: -0.5,
-  },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
 
   // ── Scroll ───────────────────────────────────────────────
   scroll: { flex: 1, backgroundColor: Colors.background },
@@ -343,106 +232,53 @@ const s = StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  // ── Create list ──────────────────────────────────────────
-  createListBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  createListIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: Colors.text,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  createListLabel: {
-    fontSize: 16,
-    fontFamily: Fonts.bodyMedium,
-    color: Colors.text,
-  },
-  createRow: {
+  // ── Bouton flottant "Nouvelle liste" (même style que le bouton Carte de l'accueil) ──
+  fab: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  createInput: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    fontFamily: Fonts.body,
-    color: Colors.text,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  confirmBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 999,
     backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    borderRadius: Radius.card,
+    ...FloatingShadow,
   },
-  confirmBtnDisabled: { backgroundColor: Colors.muted },
-  cancelBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 999,
-    backgroundColor: Colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
+  fabText: {
+    fontSize: 14,
+    fontFamily: Fonts.bodySemiBold,
+    color: "#fff",
   },
 
-  // ── Divider ──────────────────────────────────────────────
-  divider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginHorizontal: 0,
-    marginBottom: 4,
-  },
-
-  // ── List rows ────────────────────────────────────────────
-  listRow: {
+  // ── List grid (2 colonnes, façon AllTrails) ────────────────
+  grid: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
+    flexWrap: "wrap",
+    gap: GRID_GAP,
     paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
-  listThumb: {
-    width: 64,
-    height: 64,
-    borderRadius: 12,
-    flexShrink: 0,
+  gridItem: {
+    width: GRID_ITEM_WIDTH,
   },
-  listThumbEmpty: {
-    width: 64,
-    height: 64,
-    borderRadius: 12,
+  gridImage: {
+    width: GRID_ITEM_WIDTH,
+    height: GRID_ITEM_WIDTH,
+    borderRadius: Radius.cardSm,
+    marginBottom: 8,
+  },
+  gridImageEmpty: {
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
   },
-  listInfo: {
-    flex: 1,
-    gap: 3,
-  },
-  listName: {
-    fontSize: 16,
-    fontFamily: Fonts.bodyMedium,
+  gridName: {
+    fontSize: 15,
+    fontFamily: Fonts.bodySemiBold,
     color: Colors.text,
+    marginBottom: 2,
   },
-  listCount: {
+  gridCount: {
     fontSize: 13,
     fontFamily: Fonts.body,
     color: Colors.textSecondary,
@@ -470,69 +306,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 10,
-  },
-
-  // ── Spot rows (Coups de cœurs) ────────────────────────────
-  spotRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: Colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 10,
-    marginHorizontal: 20,
-    marginBottom: 10,
-  },
-  spotRowThumb: {
-    width: 72,
-    height: 72,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    flexShrink: 0,
-  },
-  spotRowThumbEmpty: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  spotRowInfo: { flex: 1, gap: 4 },
-  spotRowTitle: {
-    fontSize: 15,
-    fontFamily: Fonts.headingBold,
-    color: Colors.text,
-    letterSpacing: -0.2,
-  },
-  spotRowMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  ratingPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    backgroundColor: Colors.tagBg,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 20,
-  },
-  ratingPillStar: { fontSize: 10, color: Colors.accent },
-  ratingPillVal: { fontSize: 11, fontFamily: Fonts.bodySemiBold, color: Colors.text },
-  spotRowCount: { fontSize: 11, fontFamily: Fonts.body, color: Colors.muted },
-  spotRowTags: { flexDirection: "row", gap: 5, flexWrap: "wrap" },
-  spotRowTag: {
-    backgroundColor: Colors.tagBg,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 20,
-  },
-  spotRowTagText: { fontSize: 10, fontFamily: Fonts.bodyMedium, color: Colors.tagText },
-  arrowBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
   },
 
   // ── Auth gate ────────────────────────────────────────────

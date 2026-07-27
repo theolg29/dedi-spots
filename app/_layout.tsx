@@ -16,7 +16,6 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as SplashScreen from "expo-splash-screen";
-import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState } from "react";
 import { SystemBars } from "react-native-edge-to-edge";
@@ -95,11 +94,11 @@ export default function RootLayout() {
           <Stack.Screen name="spot/[id]"      options={{ headerShown: false, animation: "slide_from_right" }} />
           <Stack.Screen name="settings"       options={{ headerShown: false, animation: "slide_from_right" }} />
           <Stack.Screen name="category/[tag]" options={{ headerShown: false, animation: "slide_from_right" }} />
+          <Stack.Screen name="favorites/[listId]" options={{ headerShown: false, animation: "slide_from_right" }} />
           <Stack.Screen name="user/[id]"      options={{ headerShown: false, animation: "slide_from_right" }} />
           <Stack.Screen name="search"         options={{ headerShown: false, animation: "fade" }} />
           <Stack.Screen name="modal"          options={{ headerShown: false, presentation: "modal" }} />
         </Stack>
-        <StatusBar style="light" />
       </SafeAreaProvider>
     </ConvexAuthProvider>
   );

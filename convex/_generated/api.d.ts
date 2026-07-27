@@ -13,6 +13,7 @@ import type * as emails from "../emails.js";
 import type * as favorites from "../favorites.js";
 import type * as follows from "../follows.js";
 import type * as http from "../http.js";
+import type * as notifications from "../notifications.js";
 import type * as seed from "../seed.js";
 import type * as spots from "../spots.js";
 import type * as users from "../users.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   favorites: typeof favorites;
   follows: typeof follows;
   http: typeof http;
+  notifications: typeof notifications;
   seed: typeof seed;
   spots: typeof spots;
   users: typeof users;

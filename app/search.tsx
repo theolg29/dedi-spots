@@ -15,28 +15,16 @@ import { Octicons } from "@expo/vector-icons";
 
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius } from "@/constants/theme";
+import { StarRating } from "@/components/StarRating";
 import { CATEGORIES } from "./(tabs)/index";
 
 type SpotCard = Doc<"spots"> & { avgRating: number; reviewCount: number };
 
-function StarRating({ rating }: { rating: number }) {
-  return (
-    <View style={s.starRow}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Text key={i} style={[s.star, { color: i <= Math.round(rating) ? Colors.accent : "#E0DDD8" }]}>
-          ★
-        </Text>
-      ))}
-      <Text style={s.ratingNum}>{rating > 0 ? rating.toFixed(1) : "—"}</Text>
-    </View>
-  );
-}
-
 export default function SearchScreen() {
   const [query, setQuery] = useState("");
   const inputRef = useRef<TextInput>(null);
-  const spots = useQuery(api.spots.list);
+  const spots = useQuery(api.spots.list, {});
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 100);
@@ -119,7 +107,7 @@ export default function SearchScreen() {
                       </View>
                       <Text style={s.cardTitle} numberOfLines={2}>{spot.title}</Text>
                       <View style={s.cardFooter}>
-                        <StarRating rating={(spot as SpotCard).avgRating} />
+                        <StarRating rating={(spot as SpotCard).avgRating} showValue />
                         <Text style={s.reviewCount}>{(spot as SpotCard).reviewCount} avis</Text>
                       </View>
                     </View>
@@ -140,11 +128,11 @@ export default function SearchScreen() {
               {suggestedCats.map((cat) => (
                 <Pressable
                   key={cat.label}
-                  style={({ pressed }) => [s.catChip, { backgroundColor: cat.bg }, pressed && { opacity: 0.8 }]}
+                  style={({ pressed }) => [s.catChip, pressed && { opacity: 0.8 }]}
                   onPress={() => router.push(`/category/${encodeURIComponent(cat.label)}`)}
                 >
-                  <Octicons name={cat.icon} size={14} color={cat.color} />
-                  <Text style={[s.catChipText, { color: cat.color }]}>{cat.label}</Text>
+                  <cat.Icon width={14} height={14} color={Colors.primary} />
+                  <Text style={s.catChipText}>{cat.label}</Text>
                 </Pressable>
               ))}
             </View>
@@ -173,8 +161,8 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    borderRadius: Radius.pill,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -237,6 +225,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    backgroundColor: Colors.tagBg,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -244,14 +233,13 @@ const s = StyleSheet.create({
   catChipText: {
     fontSize: 13,
     fontFamily: Fonts.bodyMedium,
+    color: Colors.primary,
   },
 
   card: {
-    borderRadius: 14,
+    borderRadius: Radius.card,
     overflow: "hidden",
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
     backgroundColor: Colors.card,
   },
   cardImage: { width: "100%", height: 180 },
@@ -285,14 +273,6 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  starRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  star: { fontSize: 12 },
-  ratingNum: {
-    color: Colors.muted,
-    fontSize: 13,
-    fontFamily: Fonts.bodyMedium,
-    marginLeft: 5,
   },
   reviewCount: {
     color: Colors.muted,

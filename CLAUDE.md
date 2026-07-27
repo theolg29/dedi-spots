@@ -35,18 +35,22 @@ spots/
 │   ├── category/[tag].tsx       # Spots filtrés par catégorie (Stack screen)
 │   ├── (tabs)/
 │   │   ├── _layout.tsx          # Tab bar (5 onglets + écrans cachés)
-│   │   ├── index.tsx            # Feed / accueil — hero vert, catégories, spots
+│   │   ├── index.tsx            # Feed / accueil — header, catégories, spots
 │   │   ├── explore.tsx          # Vue carte (délègue à components/ExploreScreen)
 │   │   ├── create.tsx           # Créer un spot
 │   │   ├── favorites.tsx        # Favoris — Coups de cœurs + listes perso
 │   │   ├── profile.tsx          # Profil
 │   │   └── categories.tsx       # Toutes les catégories (tab caché, navbar visible)
+│   ├── favorites/[listId].tsx   # Détail d'une liste de favoris (renommer/supprimer)
 │   └── spot/[id].tsx            # Détail d'un spot
 ├── components/
 │   ├── AppHeader.tsx            # Header vert réutilisable (Spots + cloche + search bar)
 │   ├── ExploreScreen.tsx        # Écran carte MapLibre complet (clusters, sheet, recherche)
 │   ├── ExploreScreen.web.tsx    # Stub web
 │   ├── AddToFavoritesSheet.tsx  # Bottom sheet pour ajouter un spot à une liste
+│   ├── CreateListModal.tsx      # Modal créer/renommer une liste de favoris
+│   ├── FavoriteSpotRow.tsx      # Ligne spot réutilisée (favoris + détail de liste)
+│   ├── PhotoViewerModal.tsx     # Visionneuse plein écran (galerie spot + avis)
 │   ├── auth-form.tsx            # Formulaire auth réutilisable (signup/login + Google)
 │   ├── LocationPickerModal.tsx  # Sélecteur de position (carte MapLibre)
 │   ├── LocationPickerModal.web.tsx  # Stub web
@@ -57,8 +61,8 @@ spots/
 │   ├── http.ts                  # auth.addHttpRoutes(http)
 │   ├── convex.config.ts         # defineApp() vide
 │   ├── users.ts                 # getMyProfile, viewer, updateProfile, updateAvatar
-│   ├── spots.ts                 # Queries/mutations spots
-│   ├── favorites.ts             # Queries/mutations favoris + listes
+│   ├── spots.ts                 # Queries/mutations spots (check-in vérifié GPS côté serveur)
+│   ├── favorites.ts             # Queries/mutations favoris + listes (create/rename/delete/detail)
 │   └── emails.ts                # Envoi d'emails (Resend)
 └── constants/
     └── theme.ts                 # Couleurs (Colors) et typographie (Fonts)
@@ -89,13 +93,13 @@ spots/
 
 **Typographie installée** : Parkinsans (titres, `Fonts.heading*`) + DM Sans (textes, `Fonts.body*`).
 
-**Header global** : composant `components/AppHeader.tsx` — hero vert `#1F5C3A` avec titre "Spots", cloche, avatar et search bar blanche. Utilisé sur toutes les pages hors onboarding.
+**Header global** : composant `components/AppHeader.tsx` — header blanc (`Colors.background`) avec titre "Spots", cloche, avatar et search bar grise. Utilisé sur toutes les pages hors onboarding.
 
-**StatusBar** : `style="light"` (icônes blanches sur fond vert).
+**StatusBar** : gérée globalement via `<SystemBars style="dark" />` (react-native-edge-to-edge) dans `app/_layout.tsx` — icônes sombres, cohérentes avec les headers blancs. Ne pas ajouter de `<StatusBar />` (`expo-status-bar`) en local dans un écran : un seul mécanisme de statusbar doit exister pour éviter les conflits.
 
 **Règles de couleur** :
 - Toujours utiliser `Colors.primary` (`#1F5C3A`) — ne jamais hardcoder l'ancienne valeur `#4A7C59`
-- Le hero/header prend toute la largeur, arrondi uniquement en bas (24–28px)
+- Toujours utiliser `Colors.danger` pour les états d'erreur — ne jamais hardcoder une couleur rouge en dur
 
 ---
 
@@ -156,8 +160,8 @@ userProfiles  { userId, username?, firstName?, lastName?, country?,
 2. **Feed** — liste de spots triés par distance (GPS) ou par ville (fallback)
 3. **Vue carte** — toggle liste ↔ carte avec pins
 4. **Création de spot** — photos, titre, description, tags, position GPS
-5. **Détail spot + Check-in** — l'utilisateur doit être à ≤ 100m pour noter
-6. **Profil** — stats (spots créés, check-ins, favoris), onglets Créations / Visités / Favoris
+5. **Détail spot + Check-in** — l'utilisateur doit être à ≤ 100m pour noter (vérifié côté client et côté serveur), galerie photo (spot + avis) avec visionneuse plein écran
+6. **Profil** — stats (spots créés, check-ins, favoris), onglets Créations / Visités
 
 ---
 
@@ -192,4 +196,5 @@ Convex agent skills for common tasks can be installed by running
 ## Environnement de développement
 
 - **Plateforme de test** : Android physique via **development build** (pas Expo Go)
+- **Expo Go non supporté** : `@maplibre/maplibre-react-native` est un module natif absent du binaire Expo Go — l'app nécessite obligatoirement un development build (Android) pour fonctionner, y compris pour une simple démo.
 - `expo-blur` / BlurView peut ne pas fonctionner sur Android → préférer des backgrounds semi-transparents (`rgba(...)`) comme fallback.

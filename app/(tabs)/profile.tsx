@@ -1,4 +1,3 @@
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { Octicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -19,7 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AuthForm } from "@/components/auth-form";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius } from "@/constants/theme";
 import { api } from "@/convex/_generated/api";
 
 function GuestView() {
@@ -70,7 +69,7 @@ function SpotRow({ spot }: { spot: SpotItem }) {
         <View style={s.spotMeta}>
           {spot.avgRating > 0 && (
             <View style={s.ratingPill}>
-              <Text style={s.ratingPillStar}>★</Text>
+              <Octicons name="star-fill" size={11} color={Colors.star} />
               <Text style={s.ratingPillVal}>{spot.avgRating.toFixed(1)}</Text>
             </View>
           )}
@@ -105,7 +104,6 @@ function SpotList({ spots, emptyMessage }: { spots: SpotItem[] | undefined; empt
 }
 
 function ProfileView() {
-  const { signOut } = useAuthActions();
   const viewer = useQuery(api.users.viewer);
   const myProfile = useQuery(api.users.getMyProfile);
   const myStats = useQuery(api.users.myStats);
@@ -114,7 +112,7 @@ function ProfileView() {
   const generateUploadUrl = useMutation(api.users.generateUploadUrl);
   const updateAvatar = useMutation(api.users.updateAvatar);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [activeTab, setActiveTab] = useState<"creations" | "visited" | "favorites">("creations");
+  const [activeTab, setActiveTab] = useState<"creations" | "visited">("creations");
 
   const initial = viewer?.name?.charAt(0).toUpperCase() ?? "?";
   const avatarUrl = myProfile?.avatarUrl ?? viewer?.image ?? null;
@@ -155,7 +153,6 @@ function ProfileView() {
   const tabs = [
     { key: "creations" as const, label: "Créations" },
     { key: "visited" as const, label: "Visités" },
-    { key: "favorites" as const, label: "Favoris" },
   ];
 
   return (
@@ -217,12 +214,13 @@ function ProfileView() {
         {tabs.map((tab) => (
           <Pressable
             key={tab.key}
-            style={[s.tabBtn, activeTab === tab.key && s.tabBtnActive]}
+            style={s.tabBtn}
             onPress={() => setActiveTab(tab.key)}
           >
             <Text style={[s.tabLabel, activeTab === tab.key && s.tabLabelActive]}>
               {tab.label}
             </Text>
+            <View style={[s.tabUnderline, activeTab === tab.key && s.tabUnderlineActive]} />
           </Pressable>
         ))}
       </View>
@@ -234,28 +232,7 @@ function ProfileView() {
         {activeTab === "visited" && (
           <SpotList spots={myVisited} emptyMessage="Tu n'as encore visité aucun spot." />
         )}
-        {activeTab === "favorites" && (
-          <View style={s.favoritesTab}>
-            <Text style={s.favoritesCount}>
-              {myStats?.favoritesCount ?? 0} favori{(myStats?.favoritesCount ?? 0) !== 1 ? "s" : ""}
-            </Text>
-            <Pressable
-              style={({ pressed }) => [s.favoritesBtn, pressed && { opacity: 0.75 }]}
-              onPress={() => router.push("/(tabs)/favorites")}
-            >
-              <Text style={s.favoritesBtnText}>Voir mes favoris</Text>
-              <Octicons name="arrow-right" size={15} color="#fff" />
-            </Pressable>
-          </View>
-        )}
       </View>
-
-      <Pressable
-        style={({ pressed }) => [s.signOutBtn, pressed && { opacity: 0.6 }]}
-        onPress={() => void signOut()}
-      >
-        <Text style={s.signOutText}>Se déconnecter</Text>
-      </Pressable>
     </ScrollView>
   );
 }
@@ -306,7 +283,7 @@ const s = StyleSheet.create({
   settingsBtn: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: Radius.pill,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -327,7 +304,7 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontFamily: Fonts.body,
     color: Colors.muted,
-    lineHeight: 23,
+    lineHeight: 20,
     marginBottom: 28,
   },
 
@@ -383,47 +360,50 @@ const s = StyleSheet.create({
 
   statsRow: {
     flexDirection: "row",
+    alignItems: "center",
     marginHorizontal: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 14,
-    paddingVertical: 20,
-    marginBottom: 28,
+    marginBottom: 24,
+    gap: 20,
   },
-  stat: { flex: 1, alignItems: "center" },
+  stat: { alignItems: "flex-start" },
   statValue: {
-    fontSize: 22,
+    fontSize: 18,
     fontFamily: Fonts.headingBold,
     color: Colors.text,
-    marginBottom: 4,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
   statLabel: { fontSize: 12, fontFamily: Fonts.body, color: Colors.muted },
-  statDivider: { width: 1, backgroundColor: Colors.border },
+  statDivider: { width: 1, height: 28, backgroundColor: Colors.border },
 
   tabRow: {
     flexDirection: "row",
     paddingHorizontal: 20,
-    paddingBottom: 12,
-    gap: 8,
+    gap: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   tabBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
     alignItems: "center",
-  },
-  tabBtnActive: {
-    backgroundColor: Colors.primary,
+    paddingBottom: 12,
   },
   tabLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: Fonts.bodyMedium,
-    color: Colors.textSecondary,
+    color: Colors.muted,
   },
   tabLabelActive: {
-    color: "#fff",
+    color: Colors.text,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  tabUnderline: {
+    marginTop: 8,
+    height: 2,
+    width: "100%",
+    borderRadius: Radius.pill,
+    backgroundColor: "transparent",
+  },
+  tabUnderlineActive: {
+    backgroundColor: Colors.text,
   },
   tabContent: {
     paddingHorizontal: 20,
@@ -440,7 +420,7 @@ const s = StyleSheet.create({
   spotThumb: {
     width: 56,
     height: 56,
-    borderRadius: 10,
+    borderRadius: Radius.cardSm,
     overflow: "hidden",
   },
   spotThumbEmpty: {
@@ -465,7 +445,6 @@ const s = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 20,
   },
-  ratingPillStar: { fontSize: 11, color: Colors.accent },
   ratingPillVal: { fontSize: 12, fontFamily: Fonts.bodyMedium, color: Colors.text },
   spotTag: {
     fontSize: 12,
@@ -476,34 +455,10 @@ const s = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 20,
   },
-  favoritesTab: {
-    paddingVertical: 24,
-    alignItems: "center",
-    gap: 16,
-  },
-  favoritesCount: {
-    fontSize: 16,
-    fontFamily: Fonts.body,
-    color: Colors.textSecondary,
-  },
-  favoritesBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
-  favoritesBtnText: {
-    fontSize: 15,
-    fontFamily: Fonts.bodyMedium,
-    color: "#fff",
-  },
   emptyBox: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: Radius.card,
     padding: 20,
     alignItems: "center",
     marginTop: 8,
@@ -513,19 +468,5 @@ const s = StyleSheet.create({
     fontFamily: Fonts.body,
     color: Colors.muted,
     textAlign: "center",
-  },
-
-  signOutBtn: {
-    marginHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-  },
-  signOutText: {
-    fontSize: 15,
-    fontFamily: Fonts.bodyMedium,
-    color: Colors.muted,
   },
 });

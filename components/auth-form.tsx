@@ -385,7 +385,7 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
         <Octicons name="check-circle" size={18} color={Colors.primary} />
       );
     if (usernameStatus === "taken" || usernameStatus === "invalid")
-      return <Octicons name="x-circle" size={18} color="#D94F4F" />;
+      return <Octicons name="x-circle" size={18} color={Colors.danger} />;
     return null;
   }
 
@@ -433,7 +433,7 @@ export function AuthForm({ onSuccess, onSkip }: Props) {
             </Text>
           )}
           {usernameStatus === "taken" && (
-            <Text style={[s.usernameHint, { color: "#D94F4F" }]}>
+            <Text style={[s.usernameHint, { color: Colors.danger }]}>
               Ce pseudo est déjà pris.
             </Text>
           )}
@@ -943,7 +943,7 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontFamily: Fonts.body,
     color: Colors.muted,
-    lineHeight: 21,
+    lineHeight: 20,
     marginBottom: 20,
   },
 
@@ -972,7 +972,7 @@ const s = StyleSheet.create({
   ruleTextOk: { color: Colors.primary },
 
   errorText: {
-    color: "#D94F4F",
+    color: Colors.danger,
     fontSize: 13,
     fontFamily: Fonts.body,
     marginBottom: 10,

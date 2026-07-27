@@ -11,6 +11,7 @@ export default defineSchema({
     description: v.string(),
     latitude: v.number(),
     longitude: v.number(),
+    city: v.optional(v.string()),
     photos: v.array(v.string()),
     tags: v.array(v.string()),
     createdAt: v.number(),
@@ -24,6 +25,7 @@ export default defineSchema({
     userId: v.id("users"),
     rating: v.number(),
     comment: v.optional(v.string()),
+    photos: v.optional(v.array(v.string())),
     createdAt: v.number(),
   })
     .index("by_spot", ["spotId"])
@@ -66,4 +68,15 @@ export default defineSchema({
     .index("by_follower", ["followerId"])
     .index("by_following", ["followingId"])
     .index("by_follower_and_following", ["followerId", "followingId"]),
+
+  notifications: defineTable({
+    userId: v.id("users"), // destinataire
+    actorId: v.id("users"), // utilisateur à l'origine de l'action
+    type: v.union(v.literal("review"), v.literal("follow"), v.literal("favorite")),
+    spotId: v.optional(v.id("spots")),
+    read: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_read", ["userId", "read"]),
 });

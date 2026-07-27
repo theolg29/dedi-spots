@@ -16,7 +16,7 @@ import { Octicons } from "@expo/vector-icons";
 
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius } from "@/constants/theme";
 
 interface Props {
   visible: boolean;
@@ -195,8 +195,8 @@ const s = StyleSheet.create({
   },
   sheet: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: Radius.card,
+    borderTopRightRadius: Radius.card,
     paddingBottom: 36,
     maxHeight: "80%",
   },
@@ -283,7 +283,7 @@ const s = StyleSheet.create({
   createInput: {
     flex: 1,
     height: 44,
-    borderRadius: 12,
+    borderRadius: Radius.card,
     backgroundColor: Colors.surface,
     paddingHorizontal: 14,
     fontSize: 15,

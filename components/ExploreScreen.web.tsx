@@ -33,6 +33,6 @@ const s = StyleSheet.create({
     fontFamily: Fonts.body,
     color: Colors.muted,
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 20,
   },
 });

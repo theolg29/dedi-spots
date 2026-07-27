@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { QueryCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 
 async function resolvePhotos(ctx: QueryCtx, photos: string[]): Promise<string[]> {
   const results = await Promise.all(
@@ -30,17 +31,42 @@ async function withRating(ctx: QueryCtx, spotId: Id<"spots">) {
   return { avgRating: Math.round(avgRating * 10) / 10, reviewCount: reviews.length };
 }
 
+/** Haversine distance in km */
+function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    latitude: v.optional(v.number()),
+    longitude: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
     const spots = await ctx.db.query("spots").order("desc").take(30);
-    return await Promise.all(
+    const resolved = await Promise.all(
       spots.map(async (spot) => {
         const { avgRating, reviewCount } = await withRating(ctx, spot._id);
         const photoUrls = await resolvePhotos(ctx, spot.photos);
-        return { ...spot, photos: photoUrls, avgRating, reviewCount };
+        const distanceKmFromUser =
+          args.latitude !== undefined && args.longitude !== undefined
+            ? distanceKm(args.latitude, args.longitude, spot.latitude, spot.longitude)
+            : null;
+        return { ...spot, photos: photoUrls, avgRating, reviewCount, distanceKmFromUser };
       })
     );
+
+    // Avec position GPS : tri par proximité. Sans GPS : on garde l'ordre par récence.
+    if (args.latitude !== undefined && args.longitude !== undefined) {
+      resolved.sort((a, b) => (a.distanceKmFromUser ?? Infinity) - (b.distanceKmFromUser ?? Infinity));
+    }
+    return resolved;
   },
 });
 
@@ -79,6 +105,7 @@ export const create = mutation({
     description: v.string(),
     latitude: v.number(),
     longitude: v.number(),
+    city: v.optional(v.string()),
     photos: v.array(v.string()),
     tags: v.array(v.string()),
   },
@@ -91,6 +118,7 @@ export const create = mutation({
       description: args.description,
       latitude: args.latitude,
       longitude: args.longitude,
+      city: args.city,
       photos: args.photos,
       tags: args.tags,
       createdAt: Date.now(),
@@ -112,15 +140,27 @@ export const getUserReview = query({
   },
 });
 
+const MAX_CHECKIN_DISTANCE_METERS = 100;
+
 export const addReview = mutation({
   args: {
     spotId: v.id("spots"),
     rating: v.number(),
     comment: v.optional(v.string()),
+    photos: v.optional(v.array(v.string())),
+    latitude: v.number(),
+    longitude: v.number(),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Non authentifié");
+    const spotForCheckIn = await ctx.db.get(args.spotId);
+    if (!spotForCheckIn) throw new Error("Spot introuvable");
+    const distanceMeters =
+      distanceKm(args.latitude, args.longitude, spotForCheckIn.latitude, spotForCheckIn.longitude) * 1000;
+    if (distanceMeters > MAX_CHECKIN_DISTANCE_METERS) {
+      throw new Error("Tu dois être à moins de 100 m du spot pour laisser un avis");
+    }
     const existing = await ctx.db
       .query("reviews")
       .withIndex("by_spot_and_user", (q) =>
@@ -128,13 +168,23 @@ export const addReview = mutation({
       )
       .unique();
     if (existing) throw new Error("Avis déjà laissé pour ce spot");
-    return await ctx.db.insert("reviews", {
+    const reviewId = await ctx.db.insert("reviews", {
       spotId: args.spotId,
       userId,
       rating: args.rating,
       comment: args.comment ?? undefined,
+      photos: args.photos && args.photos.length > 0 ? args.photos : undefined,
       createdAt: Date.now(),
     });
+
+    await ctx.runMutation(internal.notifications.create, {
+      userId: spotForCheckIn.creatorId,
+      actorId: userId,
+      type: "review",
+      spotId: args.spotId,
+    });
+
+    return reviewId;
   },
 });
 
@@ -168,7 +218,8 @@ export const getById = query({
     const reviewsWithUser = await Promise.all(
       reviews.map(async (review) => {
         const user = await ctx.db.get(review.userId);
-        return { ...review, user };
+        const photoUrls = review.photos ? await resolvePhotos(ctx, review.photos) : [];
+        return { ...review, photos: photoUrls, user };
       })
     );
 

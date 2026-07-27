@@ -2,15 +2,21 @@ import { Octicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Image } from "expo-image";
+import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
+import * as SecureStore from "expo-secure-store";
 import { router, useLocalSearchParams } from "expo-router";
-import { ActionSheetIOS, ActivityIndicator, Alert, Animated, Dimensions, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, type LayoutChangeEvent } from "react-native";
+import { ActionSheetIOS, ActivityIndicator, Alert, Animated, Dimensions, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { Camera, Map as MapView, Marker } from "@maplibre/maplibre-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius, FloatingShadow } from "@/constants/theme";
+import { StarRating, StarPicker } from "@/components/StarRating";
+import { PhotoViewerModal } from "@/components/PhotoViewerModal";
+import { AddToFavoritesSheet } from "@/components/AddToFavoritesSheet";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -147,9 +153,6 @@ function WeatherBlock({ latitude, longitude }: { latitude: number; longitude: nu
 
 const w = StyleSheet.create({
   card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
     marginBottom: 20,
   },
   currentRow: {
@@ -230,29 +233,7 @@ function getDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function StarRating({ rating }: { rating: number }) {
-  return (
-    <View style={s.starRow}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Text key={i} style={[s.star, { color: i <= Math.round(rating) ? Colors.accent : "#E0DDD8" }]}>
-          ★
-        </Text>
-      ))}
-    </View>
-  );
-}
-
-function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  return (
-    <View style={s.starRow}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Pressable key={i} onPress={() => onChange(i)} hitSlop={8}>
-          <Text style={[s.starLg, { color: i <= value ? Colors.accent : "#E0DDD8" }]}>★</Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
+const MAX_REVIEW_PHOTOS = 3;
 
 function ReviewModal({
   visible,
@@ -261,11 +242,44 @@ function ReviewModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (rating: number, comment: string) => Promise<void>;
+  onSubmit: (rating: number, comment: string, photoUris: string[]) => Promise<void>;
 }) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  const pickFromGallery = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+      allowsMultipleSelection: true,
+      selectionLimit: MAX_REVIEW_PHOTOS - photos.length,
+    });
+    if (!result.canceled) {
+      setPhotos((prev) => [...prev, ...result.assets.map((a) => a.uri)].slice(0, MAX_REVIEW_PHOTOS));
+    }
+  };
+
+  const pickFromCamera = async () => {
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    if (!result.canceled) {
+      setPhotos((prev) => [...prev, result.assets[0].uri].slice(0, MAX_REVIEW_PHOTOS));
+    }
+  };
+
+  const showPhotoOptions = () => {
+    Alert.alert("Ajouter une photo", undefined, [
+      { text: "Appareil photo", onPress: pickFromCamera },
+      { text: "Galerie", onPress: pickFromGallery },
+      { text: "Annuler", style: "cancel" },
+    ]);
+  };
+
+  const removePhoto = (index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -274,9 +288,10 @@ function ReviewModal({
     }
     setSubmitting(true);
     try {
-      await onSubmit(rating, comment.trim());
+      await onSubmit(rating, comment.trim(), photos);
       setRating(0);
       setComment("");
+      setPhotos([]);
     } finally {
       setSubmitting(false);
     }
@@ -305,6 +320,30 @@ function ReviewModal({
             maxLength={500}
             returnKeyType="done"
           />
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={rm.photosRow}
+          >
+            {photos.map((uri, i) => (
+              <View key={uri} style={rm.photoThumb}>
+                <Image source={{ uri }} style={rm.photoImg} contentFit="cover" />
+                <Pressable
+                  style={rm.photoRemove}
+                  onPress={() => removePhoto(i)}
+                  accessibilityLabel={`Supprimer la photo ${i + 1}`}
+                >
+                  <Octicons name="x" size={12} color="#fff" />
+                </Pressable>
+              </View>
+            ))}
+            {photos.length < MAX_REVIEW_PHOTOS && (
+              <Pressable style={rm.photoAdd} onPress={showPhotoOptions} accessibilityLabel="Ajouter des photos">
+                <Octicons name="image" size={20} color={Colors.muted} />
+              </Pressable>
+            )}
+          </ScrollView>
 
           <Pressable
             style={({ pressed }) => [rm.submitBtn, pressed && { opacity: 0.85 }, submitting && { opacity: 0.6 }]}
@@ -342,7 +381,13 @@ function Avatar({ url, name, size = 36 }: { url?: string | null; name: string; s
   );
 }
 
-function ReviewCard({ review }: { review: any }) {
+function ReviewCard({
+  review,
+  onPhotoPress,
+}: {
+  review: any;
+  onPhotoPress: (index: number) => void;
+}) {
   const date = new Date(review.createdAt).toLocaleDateString("fr-FR", {
     day: "numeric",
     month: "long",
@@ -359,6 +404,15 @@ function ReviewCard({ review }: { review: any }) {
       </View>
       {review.comment ? (
         <Text style={s.reviewComment}>{review.comment}</Text>
+      ) : null}
+      {review.photos?.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.reviewPhotosRow}>
+          {review.photos.map((url: string, i: number) => (
+            <Pressable key={i} onPress={() => onPhotoPress(i)}>
+              <Image source={{ uri: url }} style={s.reviewPhoto} contentFit="cover" />
+            </Pressable>
+          ))}
+        </ScrollView>
       ) : null}
     </View>
   );
@@ -411,17 +465,27 @@ export default function SpotDetailScreen() {
   const spot = useQuery(api.spots.getById, { id: id as Id<"spots"> });
   const favoritedIds = useQuery(api.favorites.getFavoritedIds);
   const userReview = useQuery(api.spots.getUserReview, { spotId: id as Id<"spots"> });
-  const addToList = useMutation(api.favorites.addToList);
   const removeFav = useMutation(api.favorites.remove);
   const addReview = useMutation(api.spots.addReview);
+  const generateUploadUrl = useMutation(api.users.generateUploadUrl);
 
   const { isAuthenticated } = useConvexAuth();
   const isFavorited = favoritedIds?.includes(id as Id<"spots">) ?? false;
   const [photoIndex, setPhotoIndex] = useState(0);
-  const [mapCardWidth, setMapCardWidth] = useState(0);
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const onMapCardLayout = (e: LayoutChangeEvent) => setMapCardWidth(e.nativeEvent.layout.width);
+  const [checkInCoords, setCheckInCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [galleryVisible, setGalleryVisible] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [showFavoritesSheet, setShowFavoritesSheet] = useState(false);
+
+  // Mémorise le dernier spot consulté pour la section "Dernier spot consulté" du feed
+  const spotId = spot?._id;
+  useEffect(() => {
+    if (spotId) {
+      SecureStore.setItemAsync("lastVisitedSpotId", spotId);
+    }
+  }, [spotId]);
 
   const handleToggleFavorite = async () => {
     if (!isAuthenticated) { router.push("/onboarding"); return; }
@@ -429,7 +493,7 @@ export default function SpotDetailScreen() {
     if (isFavorited) {
       await removeFav({ spotId: id as Id<"spots"> });
     } else {
-      await addToList({ spotId: id as Id<"spots"> });
+      setShowFavoritesSheet(true);
     }
   };
 
@@ -513,14 +577,37 @@ export default function SpotDetailScreen() {
         );
         return;
       }
+      setCheckInCoords({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
       setShowReviewModal(true);
     } finally {
       setCheckInLoading(false);
     }
   };
 
-  const handleSubmitReview = async (rating: number, comment: string) => {
-    await addReview({ spotId: id as Id<"spots">, rating, comment: comment || undefined });
+  const handleSubmitReview = async (rating: number, comment: string, photoUris: string[]) => {
+    if (!checkInCoords) return;
+    const storageIds: string[] = [];
+    for (const uri of photoUris) {
+      const uploadUrl = await generateUploadUrl();
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const uploadResult = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": blob.type || "image/jpeg" },
+        body: blob,
+      });
+      const { storageId } = await uploadResult.json();
+      storageIds.push(storageId);
+    }
+    await addReview({
+      spotId: id as Id<"spots">,
+      rating,
+      comment: comment || undefined,
+      photos: storageIds,
+      latitude: checkInCoords.latitude,
+      longitude: checkInCoords.longitude,
+    });
+    setCheckInCoords(null);
     setShowReviewModal(false);
     Alert.alert("Check-in validé ✓", "Merci pour ton avis !");
   };
@@ -552,6 +639,21 @@ export default function SpotDetailScreen() {
     year: "numeric",
   });
 
+  const allPhotos = [...spot.photos, ...spot.reviews.flatMap((r: any) => r.photos ?? [])];
+  const extraPhotosCount = allPhotos.length - spot.photos.length;
+
+  let reviewPhotoOffset = spot.photos.length;
+  const reviewsWithPhotoOffset = spot.reviews.map((review: any) => {
+    const offset = reviewPhotoOffset;
+    reviewPhotoOffset += review.photos?.length ?? 0;
+    return { review, offset };
+  });
+
+  const openGallery = (index: number) => {
+    setGalleryIndex(index);
+    setGalleryVisible(true);
+  };
+
   return (
     <View style={s.screen}>
       <ScrollView
@@ -570,12 +672,31 @@ export default function SpotDetailScreen() {
             }
           >
             {spot.photos.map((photo, i) => (
-              <Image key={i} source={{ uri: photo }} style={s.heroImage} contentFit="cover" />
+              <Pressable key={i} onPress={() => openGallery(i)}>
+                <Image source={{ uri: photo }} style={s.heroImage} contentFit="cover" />
+              </Pressable>
             ))}
           </ScrollView>
 
           {spot.photos.length > 1 && (
             <AnimatedDots count={spot.photos.length} activeIndex={photoIndex} />
+          )}
+
+          {extraPhotosCount > 0 && (
+            <Pressable
+              style={s.galleryBadge}
+              onPress={() => openGallery(spot.photos.length)}
+              accessibilityRole="button"
+              accessibilityLabel={`Voir ${extraPhotosCount} photo${extraPhotosCount > 1 ? "s" : ""} supplémentaire${extraPhotosCount > 1 ? "s" : ""}`}
+            >
+              <Image
+                source={{ uri: allPhotos[spot.photos.length] }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+              />
+              <View style={s.galleryBadgeOverlay} />
+              <Text style={s.galleryBadgeText}>+{extraPhotosCount}</Text>
+            </Pressable>
           )}
 
           <Pressable
@@ -611,59 +732,13 @@ export default function SpotDetailScreen() {
 
           <Text style={s.spotTitle}>{spot.title}</Text>
 
-          {/* Info cards row */}
-          <View style={s.infoCardsRow}>
-            {/* Rating card */}
-            <View style={s.infoCard}>
-              <Text style={s.infoCardRatingValue}>
-                {spot.avgRating > 0 ? `${spot.avgRating.toFixed(1)}/5` : "—"}
-              </Text>
-              <StarRating rating={spot.avgRating} />
-              <Text style={s.infoCardSubtitle}>
-                {spot.reviewCount > 0 ? `${spot.reviewCount} avis` : "Aucun avis"}
-              </Text>
-            </View>
-
-            {/* Map preview card */}
-            <Pressable style={s.infoCardMap} onPress={handleOpenMap} onLayout={onMapCardLayout}>
-              {mapCardWidth > 0 ? (
-                <MapView
-                  style={StyleSheet.absoluteFill}
-                  mapStyle="https://tiles.openfreemap.org/styles/liberty"
-                  scrollEnabled={false}
-                  zoomEnabled={false}
-                  rotateEnabled={false}
-                  pitchEnabled={false}
-                  logo={false}
-                  attributionPosition={{ bottom: 4, left: 4 }}
-                >
-                  <Camera
-                    initialViewState={{
-                      center: [spot.longitude, spot.latitude],
-                      zoom: 11,
-                    }}
-                  />
-                  <Marker lngLat={[spot.longitude, spot.latitude]} anchor="center">
-                    <View style={s.mapPin} />
-                  </Marker>
-                </MapView>
-              ) : (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.surface }]} />
-              )}
-              <Pressable style={s.mapExpandBtn} onPress={handleOpenMap} hitSlop={8}>
-                <Octicons name="arrow-up-right" size={16} color={Colors.text} />
-              </Pressable>
-            </Pressable>
+          <View style={s.ratingRow}>
+            <StarRating rating={spot.avgRating} size={15} />
+            <Text style={s.ratingValue}>{spot.avgRating > 0 ? spot.avgRating.toFixed(1) : "—"}</Text>
+            <Text style={s.ratingCount}>
+              {spot.reviewCount > 0 ? `(${spot.reviewCount} avis)` : "(aucun avis)"}
+            </Text>
           </View>
-
-          {/* Navigate button */}
-          <Pressable
-            style={({ pressed }) => [s.navBtn, pressed && { opacity: 0.75 }]}
-            onPress={handleNavigate}
-          >
-            <Octicons name="location" size={16} color={Colors.primary} />
-            <Text style={s.navBtnText}>Itinéraire</Text>
-          </Pressable>
 
           <Pressable
             style={({ pressed }) => [s.creatorRow, pressed && { opacity: 0.75 }]}
@@ -677,15 +752,51 @@ export default function SpotDetailScreen() {
             <Text style={s.mutedText}>{createdDate}</Text>
           </Pressable>
 
-          <View style={s.divider} />
-
           <Text style={s.sectionTitle}>Description</Text>
           <Text style={s.description}>{spot.description}</Text>
 
-          {/* Weather block */}
+          <Text style={s.sectionTitle}>Localisation</Text>
+          <Pressable style={s.mapPreview} onPress={handleOpenMap}>
+            <MapView
+              style={StyleSheet.absoluteFill}
+              mapStyle="https://tiles.openfreemap.org/styles/liberty"
+              scrollEnabled={false}
+              zoomEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+              logo={false}
+              attribution={false}
+            >
+              <Camera initialViewState={{ center: [spot.longitude, spot.latitude], zoom: 12 }} />
+              <Marker lngLat={[spot.longitude, spot.latitude]} anchor="center">
+                <View style={s.mapPin} />
+              </Marker>
+            </MapView>
+            <View style={s.mapPreviewBadge}>
+              <Octicons name="arrow-up-right" size={14} color={Colors.text} />
+              <Text style={s.mapPreviewBadgeText}>Agrandir</Text>
+            </View>
+          </Pressable>
+
+          <Text style={s.sectionTitle}>Météo</Text>
           <WeatherBlock latitude={spot.latitude} longitude={spot.longitude} />
 
-          <View style={s.divider} />
+          {allPhotos.length > 0 && (
+            <>
+              <Text style={s.sectionTitle}>Galerie</Text>
+              <View style={s.galleryGrid}>
+                {allPhotos.map((uri, i) => (
+                  <Pressable
+                    key={i}
+                    style={s.galleryThumbWrap}
+                    onPress={() => openGallery(i)}
+                  >
+                    <Image source={{ uri }} style={s.galleryThumb} contentFit="cover" />
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
 
           <View style={s.reviewsHeader}>
             <Text style={s.sectionTitle}>Avis</Text>
@@ -696,42 +807,74 @@ export default function SpotDetailScreen() {
 
           {spot.reviews.length === 0 ? (
             <View style={s.emptyReviews}>
-              <Text style={[s.mutedText, { textAlign: "center", lineHeight: 21 }]}>
+              <Text style={[s.mutedText, { textAlign: "center", lineHeight: 20 }]}>
                 Sois le premier à laisser un avis en faisant un check-in sur place.
               </Text>
             </View>
           ) : (
-            spot.reviews.map((review) => <ReviewCard key={review._id} review={review} />)
+            reviewsWithPhotoOffset.map(({ review, offset }: { review: any; offset: number }) => (
+              <ReviewCard
+                key={review._id}
+                review={review}
+                onPhotoPress={(i) => openGallery(offset + i)}
+              />
+            ))
           )}
         </View>
       </ScrollView>
 
-      {/* Check-in floating button */}
+      {/* Bottom action bar — Itinéraire / Check-in en 50/50 */}
       <View style={[s.fab, { paddingBottom: insets.bottom + 12 }]}>
-        {userReview ? (
-          <View style={[s.fabBtn, s.fabBtnDone]}>
-            <Octicons name="check-circle-fill" size={16} color={Colors.primary} />
-            <Text style={[s.fabText, { color: Colors.primary }]}>Check-in effectué</Text>
-          </View>
-        ) : (
+        <View style={s.fabRow}>
           <Pressable
-            style={({ pressed }) => [s.fabBtn, pressed && { opacity: 0.85 }, checkInLoading && { opacity: 0.7 }]}
-            onPress={handleCheckIn}
-            disabled={checkInLoading}
+            style={({ pressed }) => [s.fabBtnSecondary, pressed && { opacity: 0.75 }]}
+            onPress={handleNavigate}
           >
-            {checkInLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={s.fabText}>Check-in — Laisser un avis</Text>
-            )}
+            <Octicons name="location" size={16} color={Colors.primary} />
+            <Text style={s.fabSecondaryText}>Itinéraire</Text>
           </Pressable>
-        )}
+
+          {userReview ? (
+            <View style={[s.fabBtn, s.fabBtnDone]}>
+              <Octicons name="check-circle-fill" size={16} color={Colors.primary} />
+              <Text style={[s.fabText, { color: Colors.primary }]}>Check-in fait</Text>
+            </View>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [s.fabBtn, pressed && { opacity: 0.85 }, checkInLoading && { opacity: 0.7 }]}
+              onPress={handleCheckIn}
+              disabled={checkInLoading}
+            >
+              {checkInLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Octicons name="check-circle" size={16} color="#fff" />
+                  <Text style={s.fabText}>Check-in</Text>
+                </>
+              )}
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <ReviewModal
         visible={showReviewModal}
         onClose={() => setShowReviewModal(false)}
         onSubmit={handleSubmitReview}
+      />
+
+      <PhotoViewerModal
+        visible={galleryVisible}
+        photos={allPhotos}
+        initialIndex={galleryIndex}
+        onClose={() => setGalleryVisible(false)}
+      />
+
+      <AddToFavoritesSheet
+        visible={showFavoritesSheet}
+        spotId={id as Id<"spots">}
+        onClose={() => setShowFavoritesSheet(false)}
       />
     </View>
   );
@@ -749,10 +892,11 @@ const s = StyleSheet.create({
     left: 16,
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.94)",
+    borderRadius: Radius.pill,
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
+    ...FloatingShadow,
   },
   heroActions: {
     position: "absolute",
@@ -763,10 +907,11 @@ const s = StyleSheet.create({
   heroActionBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.94)",
+    borderRadius: Radius.pill,
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
+    ...FloatingShadow,
   },
   photoDots: {
     position: "absolute",
@@ -776,12 +921,46 @@ const s = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     gap: 6,
+    marginBottom: 8,
   },
+  galleryBadge: {
+    position: "absolute",
+    bottom: 16,
+    right: 16,
+    width: 56,
+    height: 56,
+    borderRadius: Radius.cardSm,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  galleryBadgeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  galleryBadgeText: {
+    color: "#fff",
+    fontFamily: Fonts.bodyBold,
+    fontSize: 15,
+  },
+  galleryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 20,
+  },
+  galleryThumbWrap: {
+    width: (SCREEN_WIDTH - 40 - 16) / 3,
+    height: (SCREEN_WIDTH - 40 - 16) / 3,
+    borderRadius: Radius.cardSm,
+    overflow: "hidden",
+  },
+  galleryThumb: { width: "100%", height: "100%" },
 
   content: {
     backgroundColor: Colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: Radius.card,
+    borderTopRightRadius: Radius.card,
     marginTop: -18,
     paddingHorizontal: 20,
     paddingTop: 24,
@@ -802,43 +981,21 @@ const s = StyleSheet.create({
     lineHeight: 32,
     letterSpacing: -0.4,
   },
-  starRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  star: { fontSize: 15 },
-  infoCardsRow: {
+  ratingRow: {
     flexDirection: "row",
-    width: "100%",
-    gap: 12,
+    alignItems: "center",
+    gap: 8,
     marginBottom: 20,
-    alignItems: "stretch",
   },
-  infoCard: {
-    flex: 1,
-    minHeight: 130,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: "flex-start",
-    justifyContent: "center",
-    gap: 6,
-  },
-  infoCardRatingValue: {
-    fontSize: 28,
-    fontFamily: Fonts.headingBold,
+  ratingValue: {
+    fontSize: 15,
+    fontFamily: Fonts.bodySemiBold,
     color: Colors.text,
-    lineHeight: 34,
   },
-  infoCardSubtitle: {
-    fontSize: 12,
+  ratingCount: {
+    fontSize: 14,
     fontFamily: Fonts.body,
     color: Colors.muted,
-  },
-  infoCardMap: {
-    flex: 1,
-    minHeight: 130,
-    borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: Colors.surface,
-    position: "relative",
   },
   mapPin: {
     width: 14,
@@ -848,16 +1005,33 @@ const s = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: "#fff",
   },
-  mapExpandBtn: {
+  mapPreview: {
+    width: "100%",
+    height: 220,
+    borderRadius: Radius.cardSm,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 20,
+    position: "relative",
+  },
+  mapPreviewBadge: {
     position: "absolute",
-    bottom: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    bottom: 10,
+    right: 10,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radius.pill,
+    backgroundColor: "#fff",
+    ...FloatingShadow,
+  },
+  mapPreviewBadgeText: {
+    fontSize: 12,
+    fontFamily: Fonts.bodySemiBold,
+    color: Colors.text,
   },
 
   creatorRow: {
@@ -865,9 +1039,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     marginBottom: 20,
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 14,
+    paddingVertical: 14,
   },
   creatorName: { fontSize: 14, fontFamily: Fonts.bodySemiBold, color: Colors.text },
   avatarFallback: {
@@ -876,7 +1048,6 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   avatarLetter: { color: "#fff", fontFamily: Fonts.headingBold },
-  divider: { height: 1, backgroundColor: Colors.border, marginBottom: 20 },
   sectionTitle: {
     fontSize: 16,
     fontFamily: Fonts.headingBold,
@@ -888,7 +1059,7 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontFamily: Fonts.body,
     color: Colors.textSecondary,
-    lineHeight: 24,
+    lineHeight: 20,
     marginBottom: 20,
   },
   reviewsHeader: {
@@ -898,10 +1069,9 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   review: {
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   reviewHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
   reviewName: { fontSize: 13, fontFamily: Fonts.bodySemiBold, color: Colors.text },
@@ -910,29 +1080,20 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontFamily: Fonts.body,
     color: Colors.textSecondary,
-    lineHeight: 21,
+    lineHeight: 20,
     paddingLeft: 44,
   },
-  emptyReviews: { alignItems: "center", paddingVertical: 28 },
-
-  starLg: { fontSize: 32 },
-
-  navBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+  reviewPhotosRow: {
     gap: 8,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    borderRadius: 999,
-    paddingVertical: 12,
-    marginBottom: 20,
+    paddingLeft: 44,
+    paddingTop: 10,
   },
-  navBtnText: {
-    color: Colors.primary,
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: 14,
+  reviewPhoto: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.cardSm,
   },
+  emptyReviews: { alignItems: "center", paddingVertical: 28 },
 
   fab: {
     position: "absolute",
@@ -942,19 +1103,39 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+  },
+  fabRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  fabBtnSecondary: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.tagBg,
+    borderRadius: Radius.pill,
+    paddingVertical: 16,
+  },
+  fabSecondaryText: {
+    color: Colors.primary,
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 15,
   },
   fabBtn: {
+    flex: 1,
+    flexDirection: "row",
     backgroundColor: Colors.primary,
-    borderRadius: 999,
+    borderRadius: Radius.pill,
     paddingVertical: 16,
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
   fabText: { color: "#fff", fontFamily: Fonts.bodySemiBold, fontSize: 15 },
   fabBtnDone: {
     backgroundColor: Colors.tagBg,
-    flexDirection: "row",
     gap: 8,
   },
 });
@@ -972,8 +1153,8 @@ const rm = StyleSheet.create({
   },
   sheet: {
     backgroundColor: Colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: Radius.card,
+    borderTopRightRadius: Radius.card,
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 40,
@@ -1003,8 +1184,10 @@ const rm = StyleSheet.create({
     marginBottom: 20,
   },
   input: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.card,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontFamily: Fonts.body,
@@ -1013,6 +1196,42 @@ const rm = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: "top",
     marginBottom: 20,
+  },
+  photosRow: {
+    gap: 10,
+    marginBottom: 20,
+  },
+  photoThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.cardSm,
+    overflow: "hidden",
+  },
+  photoImg: {
+    width: 72,
+    height: 72,
+  },
+  photoRemove: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoAdd: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.cardSm,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.background,
   },
   submitBtn: {
     backgroundColor: Colors.primary,

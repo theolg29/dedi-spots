@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius } from "@/constants/theme";
 
 function SpotCard({ spot }: { spot: { _id: Id<"spots">; title: string; tags: string[]; photo: string | null } }) {
   return (
@@ -225,23 +225,20 @@ const s = StyleSheet.create({
   /* Stats — même style que profile.tsx */
   statsRow: {
     flexDirection: "row",
+    alignItems: "center",
     marginHorizontal: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 14,
-    paddingVertical: 20,
-    marginBottom: 16,
+    marginBottom: 20,
+    gap: 20,
   },
-  stat: { flex: 1, alignItems: "center" },
+  stat: { alignItems: "flex-start" },
   statValue: {
-    fontSize: 22,
+    fontSize: 18,
     fontFamily: Fonts.headingBold,
     color: Colors.text,
-    marginBottom: 4,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
   statLabel: { fontSize: 12, fontFamily: Fonts.body, color: Colors.muted },
-  statDivider: { width: 1, backgroundColor: Colors.border },
+  statDivider: { width: 1, height: 28, backgroundColor: Colors.border },
 
   /* Follow button */
   followBtn: {
@@ -278,7 +275,7 @@ const s = StyleSheet.create({
   emptyBox: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: Radius.card,
     padding: 20,
     alignItems: "center",
   },
@@ -293,7 +290,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 14,
+    borderRadius: Radius.card,
     marginBottom: 10,
     overflow: "hidden",
   },

@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 export const Colors = {
   primary: "#1F5C3A",      // vert forêt profond (plus sombre)
   accent: "#F4845F",       // orange coucher de soleil
@@ -10,6 +12,10 @@ export const Colors = {
   border: "#EBEBEB",
   tagBg: "#E6EFE9",        // 6% primary sur blanc
   tagText: "#1F5C3A",      // aligné sur primary
+  star: "#F5B400",         // or chaud — dédié aux notations, distinct de l'accent
+  starEmpty: "#E0DDD8",
+  danger: "#E53E3E",       // actions destructives (suppression de compte, erreurs)
+  warning: "#E8A838",      // états d'avertissement (ex: limite de caractères proche)
 
   light: {
     text: "#111111",
@@ -38,3 +44,24 @@ export const Fonts = {
   bodySemiBold: "DMSans_600SemiBold" as const,
   bodyBold: "DMSans_700Bold" as const,
 };
+
+// Boutons/tags/barres de recherche restent en pill (capsule) ; les cards,
+// photos, sheets et modales utilisent un radius léger.
+export const Radius = {
+  pill: 999,
+  card: 16,
+  cardSm: 12,
+};
+
+// Ombre légère réservée aux boutons circulaires flottants posés sur une photo
+// (back/share/heart, contrôles carte…). Le reste de l'UI reste flat, sans ombre.
+export const FloatingShadow = Platform.select({
+  ios: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+  },
+  android: { elevation: 4 },
+  default: {},
+});

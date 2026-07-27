@@ -1,4 +1,5 @@
 import { Octicons } from "@expo/vector-icons";
+import { useConvexAuth } from "convex/react";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useRef, useState } from "react";
@@ -16,33 +17,32 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthForm } from "@/components/auth-form";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius } from "@/constants/theme";
 
 const { width: W } = Dimensions.get("window");
 
 const SLIDES = [
   {
-    icon: "🗺️",
+    icon: "telescope" as const,
     title: "Découvre des lieux d'exception",
     description:
       "Des spots partagés par des explorateurs comme toi. Criques secrètes, panoramas époustouflants, recoins magiques.",
   },
   {
-    icon: "📍",
+    icon: "location" as const,
     title: "Des avis vérifiés sur place",
     description:
       "Seuls ceux qui s'y trouvent physiquement peuvent noter un spot. Chaque avis est authentique et fiable.",
   },
   {
-    icon: "🌿",
+    icon: "heart" as const,
     title: "Partage tes coups de cœur",
     description:
       "Ajoute tes propres spots, enregistre tes favoris et inspire d'autres aventuriers autour de toi.",
   },
 ];
 
-// 0 = welcome  |  1-3 = features  |  4 = auth
-const TOTAL = SLIDES.length + 2;
+// 0 = welcome  |  1-3 = features  |  4 = auth (sauté si déjà connecté)
 const DOT_W = 6;
 const DOT_ACTIVE_W = 22;
 
@@ -92,11 +92,15 @@ async function markOnboarded() {
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
+  const { isAuthenticated } = useConvexAuth();
   const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
 
+  // Déjà connecté (ex. "Revoir l'introduction" depuis les paramètres) → pas de slide de connexion
+  const TOTAL = SLIDES.length + (isAuthenticated ? 1 : 2);
   const isWelcome = index === 0;
-  const isAuth = index === TOTAL - 1;
+  const isLastSlide = index === TOTAL - 1;
+  const isAuth = !isAuthenticated && isLastSlide;
 
   function goTo(i: number) {
     scrollRef.current?.scrollTo({ x: W * i, animated: true });
@@ -144,13 +148,13 @@ export default function OnboardingScreen() {
           <View style={s.welcomePills}>
             {(
               [
-                { emoji: "🗺️", label: "Lieux d'exception" },
-                { emoji: "📍", label: "Avis vérifiés sur place" },
-                { emoji: "🌿", label: "Partage & favoris" },
+                { icon: "telescope", label: "Lieux d'exception" },
+                { icon: "location", label: "Avis vérifiés sur place" },
+                { icon: "heart", label: "Partage & favoris" },
               ] as const
-            ).map(({ emoji, label }) => (
+            ).map(({ icon, label }) => (
               <View key={label} style={s.pill}>
-                <Text style={s.pillEmoji}>{emoji}</Text>
+                <Octicons name={icon} size={16} color={Colors.primary} />
                 <Text style={s.pillLabel}>{label}</Text>
               </View>
             ))}
@@ -160,33 +164,37 @@ export default function OnboardingScreen() {
         {/* ── 1-3 : Feature slides ──────────────────────────────────────── */}
         {SLIDES.map((slide) => (
           <View key={slide.title} style={s.slide}>
-            <Text style={s.slideIcon}>{slide.icon}</Text>
+            <View style={s.slideIconWrap}>
+              <Octicons name={slide.icon} size={32} color={Colors.primary} />
+            </View>
             <Text style={s.slideTitle}>{slide.title}</Text>
             <Text style={s.slideSub}>{slide.description}</Text>
           </View>
         ))}
 
-        {/* ── 4 : Auth ─────────────────────────────────────────────────── */}
-        <KeyboardAvoidingView
-          style={[s.slide, { paddingTop: 20 }]}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <View style={s.authTopBar}>
-            <Pressable
-              onPress={skip}
-              hitSlop={16}
-              style={({ pressed }) => pressed && { opacity: 0.4 }}
-            >
-              <Octicons name="x" size={18} color={Colors.muted} />
-            </Pressable>
-          </View>
+        {/* ── 4 : Auth (uniquement si pas déjà connecté) ─────────────────── */}
+        {!isAuthenticated && (
+          <KeyboardAvoidingView
+            style={[s.slide, { paddingTop: 20 }]}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <View style={s.authTopBar}>
+              <Pressable
+                onPress={skip}
+                hitSlop={16}
+                style={({ pressed }) => pressed && { opacity: 0.4 }}
+              >
+                <Octicons name="x" size={18} color={Colors.muted} />
+              </Pressable>
+            </View>
 
-          <Text style={s.authTitle}>Rejoins la communauté</Text>
-          <Text style={s.authSub}>
-            Crée un compte pour partager tes spots et sauvegarder tes favoris.
-          </Text>
-          <AuthForm onSuccess={onAuthSuccess} onSkip={skip} />
-        </KeyboardAvoidingView>
+            <Text style={s.authTitle}>Rejoins la communauté</Text>
+            <Text style={s.authSub}>
+              Crée un compte pour partager tes spots et sauvegarder tes favoris.
+            </Text>
+            <AuthForm onSuccess={onAuthSuccess} onSkip={skip} />
+          </KeyboardAvoidingView>
+        )}
       </ScrollView>
 
       {/* ── Footer unifié — même hauteur sur welcome ET feature slides ────
@@ -203,23 +211,27 @@ export default function OnboardingScreen() {
           {/* Bouton principal — même taille, même position */}
           <Pressable
             style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.85 }]}
-            onPress={isWelcome ? () => goTo(1) : goNext}
+            onPress={
+              isWelcome ? () => goTo(1) : isAuthenticated && isLastSlide ? skip : goNext
+            }
           >
             <Text style={s.primaryBtnText}>
-              {isWelcome ? "Découvrir" : "Suivant"}
+              {isWelcome ? "Découvrir" : isAuthenticated && isLastSlide ? "Terminer" : "Suivant"}
             </Text>
           </Pressable>
 
           {/* Lien secondaire — même taille, même position */}
-          <Pressable
-            style={({ pressed }) => [s.secondaryBtn, pressed && { opacity: 0.5 }]}
-            onPress={isWelcome ? () => goTo(TOTAL - 1) : goPrev}
-            hitSlop={10}
-          >
-            <Text style={s.secondaryText}>
-              {isWelcome ? "Se connecter" : "Retour"}
-            </Text>
-          </Pressable>
+          {(!isWelcome || !isAuthenticated) && (
+            <Pressable
+              style={({ pressed }) => [s.secondaryBtn, pressed && { opacity: 0.5 }]}
+              onPress={isWelcome ? () => goTo(TOTAL - 1) : goPrev}
+              hitSlop={10}
+            >
+              <Text style={s.secondaryText}>
+                {isWelcome ? "Se connecter" : "Retour"}
+              </Text>
+            </Pressable>
+          )}
 
         </View>
       )}
@@ -259,10 +271,9 @@ const s = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 11,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.tagBg,
   },
-  pillEmoji: { fontSize: 17 },
   pillLabel: {
     fontSize: 14,
     fontFamily: Fonts.bodyMedium,
@@ -270,7 +281,15 @@ const s = StyleSheet.create({
   },
 
   // ── Feature slides ────────────────────────────────────────────────────────
-  slideIcon: { fontSize: 64, marginBottom: 32 },
+  slideIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.tagBg,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 32,
+  },
   slideTitle: {
     fontSize: 30,
     fontFamily: Fonts.headingBold,
@@ -283,7 +302,7 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontFamily: Fonts.body,
     color: Colors.muted,
-    lineHeight: 25,
+    lineHeight: 20,
   },
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -303,7 +322,7 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontFamily: Fonts.body,
     color: Colors.muted,
-    lineHeight: 23,
+    lineHeight: 20,
     marginBottom: 28,
   },
 
@@ -321,7 +340,7 @@ const s = StyleSheet.create({
   dot: { height: 6, borderRadius: 3 },
   primaryBtn: {
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Radius.pill,
     paddingVertical: 16,
     alignItems: "center",
   },

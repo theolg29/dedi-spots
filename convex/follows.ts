@@ -1,6 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 export const follow = mutation({
   args: { userId: v.id("users") },
@@ -21,6 +22,12 @@ export const follow = mutation({
       followerId: myId,
       followingId: userId,
       createdAt: Date.now(),
+    });
+
+    await ctx.runMutation(internal.notifications.create, {
+      userId,
+      actorId: myId,
+      type: "follow",
     });
   },
 });

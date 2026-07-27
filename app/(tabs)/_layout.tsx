@@ -1,38 +1,70 @@
 import { Octicons } from "@expo/vector-icons";
-import { Colors } from "@/constants/theme";
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { Tabs } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Colors, Fonts } from "@/constants/theme";
+
+type OcticonName = React.ComponentProps<typeof Octicons>["name"];
+
+const TAB_ITEMS: { name: string; label: string; icon: OcticonName }[] = [
+  { name: "index", label: "Feed", icon: "home" },
+  { name: "create", label: "Créer", icon: "plus-circle" },
+  { name: "favorites", label: "Favoris", icon: "heart" },
+  { name: "profile", label: "Profil", icon: "person" },
+];
+
+function CustomTabBar({ state, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+  const activeName = state.routes[state.index]?.name;
+
+  return (
+    <View style={[s.bar, { paddingBottom: insets.bottom || 12 }]}>
+      {TAB_ITEMS.map((tab) => {
+        const route = state.routes.find((r) => r.name === tab.name);
+        if (!route) return null;
+        const isFocused = activeName === tab.name;
+
+        const onPress = () => {
+          const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+
+        return (
+          <Pressable key={tab.name} style={s.item} onPress={onPress} hitSlop={8}>
+            <Octicons name={tab.icon} size={22} color={isFocused ? Colors.primary : Colors.muted} />
+            <Text style={[s.label, isFocused && s.labelActive]}>{tab.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function TabLayout() {
   return (
-    <NativeTabs
-      tintColor={Colors.primary}
-      backgroundColor="#F9F9FB"
-      indicatorColor={Colors.primary}
-      iconColor={{ default: "rgba(0,0,0,0.38)", selected: "#FFFFFF" }}
-      labelVisibilityMode="labeled"
-      rippleColor="transparent"
-    >
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Octicons} name="home" />} />
-        <NativeTabs.Trigger.Label>Feed</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Octicons} name="location" />} />
-        <NativeTabs.Trigger.Label>Carte</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="create">
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Octicons} name="plus-circle" />} />
-        <NativeTabs.Trigger.Label>Créer</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="favorites">
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Octicons} name="heart" />} />
-        <NativeTabs.Trigger.Label>Favoris</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Octicons} name="person" />} />
-        <NativeTabs.Trigger.Label>Profil</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="categories" hidden />
-    </NativeTabs>
+    <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="explore" options={{ href: null }} />
+      <Tabs.Screen name="create" />
+      <Tabs.Screen name="favorites" />
+      <Tabs.Screen name="profile" />
+      <Tabs.Screen name="categories" options={{ href: null }} />
+    </Tabs>
   );
 }
+
+const s = StyleSheet.create({
+  bar: {
+    flexDirection: "row",
+    backgroundColor: Colors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+    paddingTop: 10,
+  },
+  item: { flex: 1, alignItems: "center", gap: 4 },
+  label: { fontSize: 11, fontFamily: Fonts.bodyMedium, color: Colors.muted },
+  labelActive: { color: Colors.primary, fontFamily: Fonts.bodySemiBold },
+});

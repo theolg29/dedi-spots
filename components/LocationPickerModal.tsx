@@ -26,7 +26,7 @@ type LatLng = { latitude: number; longitude: number };
 interface Props {
   visible: boolean;
   onClose: () => void;
-  onConfirm: (coords: LatLng, address: string) => void;
+  onConfirm: (coords: LatLng, address: string, city?: string) => void;
   initialCoords?: LatLng | null;
 }
 
@@ -47,6 +47,7 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
     initialCoords ?? { latitude: DEFAULT_CENTER[1], longitude: DEFAULT_CENTER[0] }
   );
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState<string | undefined>(undefined);
   const [searchText, setSearchText] = useState("");
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -80,6 +81,7 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
         const addr = parts.join(", ");
         setAddress(addr);
         setSearchText(addr);
+        setCity(r.city ?? r.subregion ?? undefined);
       }
     } catch {
       // silent
@@ -154,7 +156,7 @@ export function LocationPickerModal({ visible, onClose, onConfirm, initialCoords
   };
 
   const handleConfirm = () => {
-    onConfirm(center, address);
+    onConfirm(center, address, city);
     onClose();
   };
 

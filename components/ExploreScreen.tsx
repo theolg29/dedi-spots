@@ -2,16 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Modal,
   NativeSyntheticEvent,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { Camera, Map as MapView, Marker, UserLocation, type CameraRef, type ViewStateChangeEvent } from "@maplibre/maplibre-react-native";
+import type { StyleSpecification } from "@maplibre/maplibre-gl-style-spec";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { Octicons } from "@expo/vector-icons";
@@ -19,14 +21,15 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius, FloatingShadow } from "@/constants/theme";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 
 type MapStyleKey = "classic" | "satellite" | "hybrid";
 
 const CLASSIC_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
-const SATELLITE_SPEC = {
+const SATELLITE_SPEC: StyleSpecification = {
   version: 8,
   sources: {
     sat: {
@@ -39,7 +42,7 @@ const SATELLITE_SPEC = {
   layers: [{ id: "sat", type: "raster", source: "sat" }],
 };
 
-const HYBRID_SPEC = {
+const HYBRID_SPEC: StyleSpecification = {
   version: 8,
   sources: {
     sat: {
@@ -132,7 +135,7 @@ function computeClusters(spots: SpotItem[], latitudeDelta: number): MapCluster[]
   return result;
 }
 
-export default function MapScreen() {
+export default function MapScreen({ bottomInset = 0 }: { bottomInset?: number }) {
   const { spotId } = useLocalSearchParams<{ spotId?: string }>();
   const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraRef>(null);
@@ -144,8 +147,7 @@ export default function MapScreen() {
   const [locating, setLocating] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [mapStyleKey, setMapStyleKey] = useState<MapStyleKey>("classic");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [mapStylePickerVisible, setMapStylePickerVisible] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
 
@@ -166,25 +168,9 @@ export default function MapScreen() {
     }));
   }, [rawSpots]);
 
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    for (const sp of spots) sp.tags.forEach((t) => tagSet.add(t));
-    return Array.from(tagSet).slice(0, 10);
-  }, [spots]);
-
-  const filteredSpots = useMemo(() => {
-    let list = spots;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter((sp) => sp.title.toLowerCase().includes(q));
-    }
-    if (activeTag) list = list.filter((sp) => sp.tags.includes(activeTag));
-    return list;
-  }, [spots, searchQuery, activeTag]);
-
   const clusters = useMemo(
-    () => computeClusters(filteredSpots, zoomToLatitudeDelta(zoom)),
-    [filteredSpots, zoom]
+    () => computeClusters(spots, zoomToLatitudeDelta(zoom)),
+    [spots, zoom]
   );
 
   const locationInitialized = useRef(false);
@@ -307,14 +293,13 @@ export default function MapScreen() {
 
   const activeStyle = useMemo(() => {
     if (mapStyleKey === "classic") return CLASSIC_STYLE;
-    const spec = mapStyleKey === "satellite" ? SATELLITE_SPEC : HYBRID_SPEC;
-    return `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+    return mapStyleKey === "satellite" ? SATELLITE_SPEC : HYBRID_SPEC;
   }, [mapStyleKey]);
 
   const isLoading = rawSpots === undefined;
-  const spotCount = filteredSpots.length;
-  const btnBottom = 16;
-  const sheetBottom = 8;
+  const spotCount = spots.length;
+  const btnBottom = 16 + bottomInset;
+  const sheetBottom = 8 + bottomInset;
 
   const selectedDistance = useMemo(() => {
     if (!selectedSpot || !userLocation) return null;
@@ -323,6 +308,7 @@ export default function MapScreen() {
 
   return (
     <View style={s.container}>
+      <StatusBar style="dark" />
       <MapView
         style={StyleSheet.absoluteFill}
         mapStyle={activeStyle}
@@ -380,52 +366,6 @@ export default function MapScreen() {
         })}
       </MapView>
 
-      {/* Header overlay */}
-      <SafeAreaView edges={["top"]} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        <View style={s.header} pointerEvents="box-none">
-          <View style={s.searchRow}>
-            <View style={s.searchBar}>
-              <Octicons name="search" size={15} color={Colors.muted} />
-              <TextInput
-                style={s.searchInput}
-                placeholder="Rechercher un spot…"
-                placeholderTextColor={Colors.muted}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                returnKeyType="search"
-                accessibilityLabel="Rechercher un spot"
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                  <Octicons name="x" size={14} color={Colors.muted} />
-                </TouchableOpacity>
-              )}
-            </View>
-            {!isLoading && (
-              <View style={s.countBadge}>
-                <Text style={s.countText}>{spotCount}</Text>
-              </View>
-            )}
-          </View>
-          {allTags.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tagChipsRow}>
-              {allTags.map((tag) => {
-                const active = activeTag === tag;
-                return (
-                  <TouchableOpacity
-                    key={tag}
-                    style={[s.tagChip, active && s.tagChipActive]}
-                    onPress={() => setActiveTag(active ? null : tag)}
-                  >
-                    <Text style={[s.tagChipText, active && s.tagChipTextActive]}>{tag}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
-      </SafeAreaView>
-
       {/* Permission denied banner */}
       {permissionDenied && (
         <SafeAreaView edges={["top"]} pointerEvents="box-none" style={[StyleSheet.absoluteFill, { justifyContent: "flex-end" }]}>
@@ -436,20 +376,13 @@ export default function MapScreen() {
         </SafeAreaView>
       )}
 
-      {/* Map style toggle */}
-      <View style={[s.styleToggle, { bottom: btnBottom }]}>
-        {(["classic", "satellite", "hybrid"] as const).map((key) => (
-          <TouchableOpacity
-            key={key}
-            style={[s.stylePill, mapStyleKey === key && s.stylePillActive]}
-            onPress={() => setMapStyleKey(key)}
-          >
-            <Text style={[s.stylePillText, mapStyleKey === key && s.stylePillTextActive]}>
-              {key === "classic" ? "Carte" : key === "satellite" ? "Satellite" : "Hybride"}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Choix du type de carte */}
+      <TouchableOpacity
+        style={[s.mapStyleBtn, { bottom: btnBottom }]}
+        onPress={() => setMapStylePickerVisible(true)}
+      >
+        <Octicons name="stack" size={19} color={Colors.primary} />
+      </TouchableOpacity>
 
       {/* Location button */}
       <TouchableOpacity
@@ -463,6 +396,41 @@ export default function MapScreen() {
           <Octicons name="location" size={20} color={Colors.primary} />
         )}
       </TouchableOpacity>
+
+      {/* Popup de choix du type de carte */}
+      <Modal
+        transparent
+        visible={mapStylePickerVisible}
+        animationType="slide"
+        onRequestClose={() => setMapStylePickerVisible(false)}
+      >
+        <Pressable style={s.pickerBackdrop} onPress={() => setMapStylePickerVisible(false)} />
+        <View style={[s.pickerSheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={s.pickerHandle} />
+          <Text style={s.pickerTitle}>Type de carte</Text>
+          {(
+            [
+              { key: "classic", label: "Carte" },
+              { key: "satellite", label: "Satellite" },
+              { key: "hybrid", label: "Hybride" },
+            ] as const
+          ).map(({ key, label }) => (
+            <TouchableOpacity
+              key={key}
+              style={s.pickerRow}
+              onPress={() => {
+                setMapStyleKey(key);
+                setMapStylePickerVisible(false);
+              }}
+            >
+              <Text style={s.pickerRowLabel}>{label}</Text>
+              {mapStyleKey === key && (
+                <Octicons name="check" size={18} color={Colors.primary} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Modal>
 
       {/* Loading */}
       {isLoading && (
@@ -479,17 +447,11 @@ export default function MapScreen() {
         <View style={s.emptyOverlay} pointerEvents="box-none">
           <View style={s.emptyCard}>
             <Octicons name="location" size={28} color={Colors.muted} />
-            <Text style={s.emptyTitle}>
-              {searchQuery || activeTag ? "Aucun résultat" : "Aucun spot pour l'instant"}
-            </Text>
-            <Text style={s.emptySubtitle}>
-              {searchQuery || activeTag ? "Essaie un autre filtre ou mot-clé." : "Sois le premier à partager un lieu !"}
-            </Text>
-            {!searchQuery && !activeTag && (
-              <TouchableOpacity style={s.emptyCta} onPress={() => router.push("/(tabs)/create")}>
-                <Text style={s.emptyCtaText}>Créer un spot</Text>
-              </TouchableOpacity>
-            )}
+            <Text style={s.emptyTitle}>Aucun spot pour l'instant</Text>
+            <Text style={s.emptySubtitle}>Sois le premier à partager un lieu !</Text>
+            <TouchableOpacity style={s.emptyCta} onPress={() => router.push("/(tabs)/create")}>
+              <Text style={s.emptyCtaText}>Créer un spot</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -517,7 +479,7 @@ export default function MapScreen() {
               <View style={s.metaRow}>
                 {selectedSpot.avgRating > 0 && (
                   <View style={s.ratingPill}>
-                    <Text style={s.starChar}>★</Text>
+                    <Octicons name="star-fill" size={10} color={Colors.star} />
                     <Text style={s.ratingVal}>{selectedSpot.avgRating.toFixed(1)}</Text>
                   </View>
                 )}
@@ -552,86 +514,71 @@ export default function MapScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: 16, paddingTop: 8, gap: 8 },
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  searchBar: {
-    flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "rgba(255,255,255,0.95)", borderRadius: 14,
-    paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: Colors.border,
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6 },
-      android: { elevation: 3 },
-    }),
-  },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: Fonts.body, color: Colors.text, padding: 0 },
-  countBadge: {
-    backgroundColor: Colors.primary, borderRadius: 12, minWidth: 32,
-    height: 32, alignItems: "center", justifyContent: "center", paddingHorizontal: 8,
-  },
-  countText: { fontSize: 12, fontFamily: Fonts.bodySemiBold, color: "#fff" },
-  tagChipsRow: { gap: 6, paddingRight: 16 },
-  tagChip: {
-    backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 20, borderWidth: 1, borderColor: Colors.border,
-  },
-  tagChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  tagChipText: { fontSize: 12, fontFamily: Fonts.bodyMedium, color: Colors.text },
-  tagChipTextActive: { color: "#fff" },
   permBanner: {
     position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: "rgba(255,255,255,0.95)", paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.card, borderWidth: 1, borderColor: Colors.border,
   },
   permText: { fontSize: 12, fontFamily: Fonts.bodyMedium, color: Colors.text },
-  styleToggle: {
-    position: "absolute",
-    left: 16,
-    flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.95)",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: "hidden",
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6 },
-      android: { elevation: 3 },
-    }),
-  },
-  stylePill: {
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-  },
-  stylePillActive: {
-    backgroundColor: Colors.primary,
-  },
-  stylePillText: {
-    fontSize: 12,
-    fontFamily: Fonts.bodySemiBold,
-    color: Colors.text,
-  },
-  stylePillTextActive: {
-    color: "#fff",
+  mapStyleBtn: {
+    position: "absolute", left: 16, width: 44, height: 44, borderRadius: Radius.pill,
+    backgroundColor: "#fff", alignItems: "center", justifyContent: "center",
+    ...FloatingShadow,
   },
   myLocBtn: {
-    position: "absolute", right: 16, width: 44, height: 44, borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.95)", alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: Colors.border,
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6 },
-      android: { elevation: 3 },
-    }),
+    position: "absolute", right: 16, width: 44, height: 44, borderRadius: Radius.pill,
+    backgroundColor: "#fff", alignItems: "center", justifyContent: "center",
+    ...FloatingShadow,
+  },
+  pickerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  pickerSheet: {
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: Radius.card,
+    borderTopRightRadius: Radius.card,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  pickerHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  pickerRowLabel: {
+    fontSize: 15,
+    fontFamily: Fonts.bodyMedium,
+    color: Colors.text,
   },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
   loadingCard: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "rgba(255,255,255,0.95)", paddingHorizontal: 18, paddingVertical: 12,
-    borderRadius: 14, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Radius.card, borderWidth: 1, borderColor: Colors.border,
   },
   loadingText: { fontSize: 14, fontFamily: Fonts.bodyMedium, color: Colors.text },
   emptyOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
   emptyCard: {
     alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.95)",
-    paddingHorizontal: 28, paddingVertical: 24, borderRadius: 16, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 28, paddingVertical: 24, borderRadius: Radius.card, borderWidth: 1, borderColor: Colors.border,
   },
   emptyTitle: { fontSize: 16, fontFamily: Fonts.headingBold, color: Colors.text },
   emptySubtitle: { fontSize: 13, fontFamily: Fonts.body, color: Colors.muted, textAlign: "center" },
@@ -640,14 +587,14 @@ const s = StyleSheet.create({
   sheet: { position: "absolute", left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   card: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: Colors.card, borderRadius: 16, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderRadius: Radius.card,
     padding: 10, overflow: "hidden",
     ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12 },
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 14 },
       android: { elevation: 6 },
     }),
   },
-  thumb: { width: 72, height: 72, borderRadius: 12, backgroundColor: Colors.surface },
+  thumb: { width: 72, height: 72, borderRadius: Radius.cardSm, backgroundColor: Colors.surface },
   thumbPlaceholder: { alignItems: "center", justifyContent: "center" },
   info: { flex: 1, gap: 3 },
   spotTitle: { fontSize: 15, fontFamily: Fonts.headingBold, color: Colors.text, letterSpacing: -0.2 },
@@ -656,13 +603,12 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 2,
     backgroundColor: Colors.tagBg, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 20,
   },
-  starChar: { fontSize: 10, color: Colors.accent },
   ratingVal: { fontSize: 11, fontFamily: Fonts.bodySemiBold, color: Colors.text },
   reviewCountText: { fontSize: 11, fontFamily: Fonts.body, color: Colors.muted },
   distanceText: { fontSize: 11, fontFamily: Fonts.body, color: Colors.muted },
-  descSnippet: { fontSize: 12, fontFamily: Fonts.body, color: Colors.textSecondary, lineHeight: 16 },
+  descSnippet: { fontSize: 12, fontFamily: Fonts.body, color: Colors.textSecondary, lineHeight: 20 },
   tagsContent: { gap: 5, alignItems: "center" },
   tag: { backgroundColor: Colors.tagBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
   tagText: { fontSize: 10, fontFamily: Fonts.bodyMedium, color: Colors.tagText },
-  arrowBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center" },
+  arrowBtn: { width: 36, height: 36, borderRadius: Radius.pill, backgroundColor: Colors.surface, alignItems: "center", justifyContent: "center" },
 });

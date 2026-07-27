@@ -1,53 +1,74 @@
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Dimensions,
+  PanResponder,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import * as SecureStore from "expo-secure-store";
+import type { SvgProps } from "react-native-svg";
+
+import BeachIcon from "@/assets/icons/beach.svg";
+import ForestIcon from "@/assets/icons/forest.svg";
+import TelescopeIcon from "@/assets/icons/telescope.svg";
+import MountainIcon from "@/assets/icons/mountais.svg";
+import SunsetIcon from "@/assets/icons/sunset.svg";
+import WaterfallIcon from "@/assets/icons/waterfall.svg";
+import LakeIcon from "@/assets/icons/lake.svg";
+import ArchitectureIcon from "@/assets/icons/architecture.svg";
+import NatureIcon from "@/assets/icons/nature.svg";
 
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius, FloatingShadow } from "@/constants/theme";
 import { AddToFavoritesSheet } from "@/components/AddToFavoritesSheet";
+import { AppHeader } from "@/components/AppHeader";
+import { StarRating } from "@/components/StarRating";
+import ExploreScreen from "@/components/ExploreScreen";
+
+const CARD_WIDTH = Dimensions.get("window").width - 32;
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+// Hauteur fixe du contenu de la barre "peek" (poignée + pilule de recherche),
+// hors inset de sécurité du haut qui varie selon l'appareil.
+const PEEK_CONTENT_HEIGHT = 72;
 
 type SpotCard = Doc<"spots"> & { avgRating: number; reviewCount: number };
 
-type OcticonName = React.ComponentProps<typeof Octicons>["name"];
+type CategoryIcon = React.FC<SvgProps>;
 
-export const CATEGORIES: { label: string; icon: OcticonName; bg: string; color: string }[] = [
-  { label: "Plage",             icon: "sun",        bg: "#D6EEFF", color: "#2478C4" },
-  { label: "Forêt",             icon: "north-star", bg: "#D8F0E4", color: "#2C7A48" },
-  { label: "Panorama",         icon: "telescope",  bg: "#EAE6F8", color: "#6B4FC0" },
-  { label: "Montagne",         icon: "location",   bg: "#E6F0EB", color: "#4A7C59" },
-  { label: "Coucher de soleil", icon: "flame",     bg: "#FDECEA", color: "#D95F30" },
-  { label: "Cascade",          icon: "cloud",      bg: "#D4EEF7", color: "#2588AB" },
-  { label: "Lac",               icon: "globe",      bg: "#D8EAF7", color: "#2270A8" },
-  { label: "Urbain",           icon: "home",       bg: "#EEE8E0", color: "#8B6A44" },
-  { label: "Caché",             icon: "eye-closed", bg: "#EDE9F7", color: "#7350B8" },
-  { label: "Patrimoine",       icon: "bookmark",   bg: "#F5EDE0", color: "#9A6A3C" },
-  { label: "Falaise",          icon: "pin",        bg: "#F0EAE6", color: "#9C5A38" },
-  { label: "Nature",           icon: "star",       bg: "#E2F0E6", color: "#3D6B4A" },
+// Pas de SVG fourni pour "Patrimoine" — Octicon en attendant.
+const PatrimoineIcon: CategoryIcon = ({ width, color }) => (
+  <Octicons name="bookmark" size={Number(width) || 20} color={color as string} />
+);
+
+// Une seule teinte pour toutes les catégories (façon AllTrails — icônes
+// monochromes, pas une couleur pastel différente par catégorie).
+export const CATEGORIES: {
+  label: string;
+  Icon: CategoryIcon;
+}[] = [
+  { label: "Plage", Icon: BeachIcon },
+  { label: "Forêt", Icon: ForestIcon },
+  { label: "Panorama", Icon: TelescopeIcon },
+  { label: "Montagne", Icon: MountainIcon },
+  { label: "Coucher de soleil", Icon: SunsetIcon },
+  { label: "Cascade", Icon: WaterfallIcon },
+  { label: "Lac", Icon: LakeIcon },
+  { label: "Urbain", Icon: ArchitectureIcon },
+  { label: "Patrimoine", Icon: PatrimoineIcon },
+  { label: "Nature", Icon: NatureIcon },
 ];
-
-const HOME_CATEGORIES = CATEGORIES.slice(0, 4);
-
-// Tinted card background: white + 5% primary (#1F5C3A)
-const CARD_BG = "#EFF5F1";
-const CARD_BORDER = "#DCE9E1";
-
-function StarRating({ rating }: { rating: number }) {
-  return (
-    <View style={s.starRow}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Text key={i} style={[s.star, { color: i <= Math.round(rating) ? Colors.accent : "#E0DDD8" }]}>
-          ★
-        </Text>
-      ))}
-      <Text style={s.ratingNum}>{rating > 0 ? rating.toFixed(1) : "—"}</Text>
-    </View>
-  );
-}
 
 function SpotCard({
   spot,
@@ -58,13 +79,43 @@ function SpotCard({
   isFavorited: boolean;
   onFavoritePress: () => void;
 }) {
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const hasMultiplePhotos = spot.photos.length > 1;
+
   return (
     <Pressable
       style={({ pressed }) => [s.card, pressed && { opacity: 0.96 }]}
       onPress={() => router.push(`/spot/${spot._id}`)}
     >
-      <View>
-        <Image source={{ uri: spot.photos[0] }} style={s.cardImage} contentFit="cover" />
+      <View style={s.imageWrap}>
+        {hasMultiplePhotos ? (
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(e) =>
+              setPhotoIndex(
+                Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH),
+              )
+            }
+          >
+            {spot.photos.map((photo, i) => (
+              <Image
+                key={i}
+                source={{ uri: photo }}
+                style={s.cardImage}
+                contentFit="cover"
+              />
+            ))}
+          </ScrollView>
+        ) : (
+          <Image
+            source={{ uri: spot.photos[0] }}
+            style={s.cardImage}
+            contentFit="cover"
+          />
+        )}
+
         <Pressable
           style={s.heartBtn}
           onPress={() => onFavoritePress()}
@@ -73,9 +124,17 @@ function SpotCard({
           <Octicons
             name={isFavorited ? "heart-fill" : "heart"}
             size={18}
-            color={isFavorited ? Colors.accent : Colors.textSecondary}
+            color={isFavorited ? Colors.accent : Colors.text}
           />
         </Pressable>
+
+        {hasMultiplePhotos && (
+          <View style={s.dotsRow}>
+            {spot.photos.map((_, i) => (
+              <View key={i} style={[s.dot, i === photoIndex && s.dotActive]} />
+            ))}
+          </View>
+        )}
       </View>
       <View style={s.cardBody}>
         <View style={s.tagsRow}>
@@ -85,9 +144,12 @@ function SpotCard({
             </View>
           ))}
         </View>
-        <Text style={s.cardTitle} numberOfLines={2}>{spot.title}</Text>
+        <Text style={s.cardTitle} numberOfLines={2}>
+          {spot.title}
+        </Text>
+        {spot.city && <Text style={s.cardCity}>{spot.city}</Text>}
         <View style={s.cardFooter}>
-          <StarRating rating={spot.avgRating} />
+          <StarRating rating={spot.avgRating} showValue />
           <Text style={s.reviewCount}>{spot.reviewCount} avis</Text>
         </View>
       </View>
@@ -95,28 +157,145 @@ function SpotCard({
   );
 }
 
-
-
-function CategoryCard({ cat }: { cat: typeof CATEGORIES[number] }) {
+function LastVisitedCard({
+  spot,
+  isFavorited,
+  onFavoritePress,
+}: {
+  spot: SpotCard;
+  isFavorited: boolean;
+  onFavoritePress: () => void;
+}) {
   return (
     <Pressable
-      style={({ pressed }) => [s.catCard, pressed && { opacity: 0.82 }]}
+      style={({ pressed }) => [s.lastVisited, pressed && { opacity: 0.96 }]}
+      onPress={() => router.push(`/spot/${spot._id}`)}
+    >
+      <Image
+        source={{ uri: spot.photos[0] }}
+        style={s.lastVisitedThumb}
+        contentFit="cover"
+      />
+      <View style={s.lastVisitedInfo}>
+        <Text style={s.lastVisitedTitle} numberOfLines={1}>
+          {spot.title}
+        </Text>
+        <StarRating rating={spot.avgRating} showValue />
+      </View>
+      <Pressable
+        style={s.lastVisitedHeart}
+        onPress={() => onFavoritePress()}
+        hitSlop={8}
+      >
+        <Octicons
+          name={isFavorited ? "heart-fill" : "heart"}
+          size={16}
+          color={isFavorited ? Colors.accent : Colors.text}
+        />
+      </Pressable>
+    </Pressable>
+  );
+}
+
+function CategoryPill({ cat }: { cat: (typeof CATEGORIES)[number] }) {
+  const { Icon } = cat;
+  return (
+    <Pressable
+      style={({ pressed }) => [s.catPill, pressed && { opacity: 0.8 }]}
       onPress={() => router.push(`/category/${encodeURIComponent(cat.label)}`)}
     >
-      <View style={[s.catIconWrap, { backgroundColor: cat.bg }]}>
-        <Octicons name={cat.icon} size={18} color={cat.color} />
+      <View style={s.catPillIcon}>
+        <Icon width={18} height={18} color={Colors.primary} />
       </View>
-      <Text style={s.catLabel} numberOfLines={1}>{cat.label}</Text>
-      <Octicons name="chevron-right" size={13} color={Colors.muted} />
+      <Text style={s.catPillLabel}>{cat.label}</Text>
     </Pressable>
   );
 }
 
 export default function FeedScreen() {
-  const spots = useQuery(api.spots.list);
-  const myProfile = useQuery(api.users.getMyProfile);
+  const insets = useSafeAreaInsets();
+  const SHEET_PEEK = PEEK_CONTENT_HEIGHT;
+  const [mapMounted, setMapMounted] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const expandedRef = useRef(true);
+  const containerHeightRef = useRef(SCREEN_HEIGHT);
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  const snapTo = (toExpanded: boolean) => {
+    if (!toExpanded) setMapMounted(true);
+    expandedRef.current = toExpanded;
+    setExpanded(toExpanded);
+    Animated.spring(translateY, {
+      toValue: toExpanded ? 0 : containerHeightRef.current - SHEET_PEEK,
+      useNativeDriver: true,
+      friction: 9,
+      tension: 65,
+    }).start();
+  };
+
+  // Le drag ne fonctionne que depuis l'état replié (carte) pour remonter
+  // vers la liste — depuis la liste, seul le bouton "Carte" fait redescendre.
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !expandedRef.current,
+      onMoveShouldSetPanResponder: (_, g) => !expandedRef.current && Math.abs(g.dy) > 6,
+      onPanResponderGrant: () => {
+        translateY.stopAnimation();
+        translateY.setOffset(containerHeightRef.current - SHEET_PEEK);
+        translateY.setValue(0);
+      },
+      onPanResponderMove: Animated.event([null, { dy: translateY }], { useNativeDriver: false }),
+      onPanResponderRelease: (_, g) => {
+        translateY.flattenOffset();
+        const hiddenY = containerHeightRef.current - SHEET_PEEK;
+        if (Math.abs(g.dy) < 5 && Math.abs(g.dx) < 5) {
+          snapTo(true);
+          return;
+        }
+        const projected = hiddenY + g.dy;
+        const shouldExpand = g.vy < -0.6 ? true : projected < hiddenY / 2;
+        snapTo(shouldExpand);
+      },
+    })
+  ).current;
+
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [lastVisitedId, setLastVisitedId] = useState<Id<"spots"> | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== "granted") return;
+      try {
+        const loc = await Location.getLastKnownPositionAsync();
+        if (loc)
+          setUserLocation({
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          });
+      } catch {
+        // pas de position connue — le feed reste trié par récence
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    SecureStore.getItemAsync("lastVisitedSpotId").then((v) => {
+      if (v) setLastVisitedId(v as Id<"spots">);
+    });
+  }, []);
+
+  const spots = useQuery(api.spots.list, userLocation ?? {});
+  const lastVisitedSpot = useQuery(
+    api.spots.getById,
+    lastVisitedId ? { id: lastVisitedId } : "skip"
+  );
   const favoritedIds = useQuery(api.favorites.getFavoritedIds);
 
+  const { isAuthenticated } = useConvexAuth();
   const removeFav = useMutation(api.favorites.remove);
   const [refreshing, setRefreshing] = useState(false);
   const [sheetSpotId, setSheetSpotId] = useState<Id<"spots"> | null>(null);
@@ -124,6 +303,10 @@ export default function FeedScreen() {
   const favSet = new Set((favoritedIds ?? []).map(String));
 
   const handleFavoritePress = (spotId: Id<"spots">) => {
+    if (!isAuthenticated) {
+      router.push("/onboarding");
+      return;
+    }
     if (favSet.has(String(spotId))) {
       removeFav({ spotId });
     } else {
@@ -138,315 +321,251 @@ export default function FeedScreen() {
   };
 
   return (
-    <SafeAreaView edges={["top"]} style={s.screen}>
-      {/* ── Sticky header ── */}
-      <View style={s.stickyHeader}>
-        <View style={s.heroHeader}>
-          <Text style={s.headerTitle}>Spots</Text>
-          <View style={s.headerRight}>
-            <Pressable style={s.iconBtn} onPress={() => router.push("/modal")}>
-              <Octicons name="bell" size={18} color="#fff" />
-            </Pressable>
-            <Pressable
-              style={s.avatarBtn}
-              onPress={() => router.push("/(tabs)/profile")}
-            >
-              {myProfile?.avatarUrl ? (
-                <Image source={{ uri: myProfile.avatarUrl }} style={s.avatar} contentFit="cover" />
-              ) : (
-                <Octicons name="person" size={18} color="rgba(255,255,255,0.85)" />
-              )}
-            </Pressable>
-          </View>
-        </View>
-        <Pressable style={s.searchBar} onPress={() => router.push("/search")}>
-          <Octicons name="search" size={15} color={Colors.muted} />
-          <Text style={s.searchPlaceholder}>Rechercher un lieu…</Text>
-        </Pressable>
-      </View>
+    <View style={s.screen}>
+      {mapMounted && <ExploreScreen bottomInset={SHEET_PEEK} />}
 
-      <ScrollView
-        style={s.scroll}
-        contentContainerStyle={s.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.primary}
-            colors={[Colors.primary]}
-          />
-        }
+      <Animated.View
+        style={[s.sheetContainer, { transform: [{ translateY }] }]}
+        onLayout={(e) => { containerHeightRef.current = e.nativeEvent.layout.height; }}
       >
-        {/* Hero banner — défile */}
-        <View style={s.heroBannerWrap}>
-          <View style={s.heroBanner}>
-            <View style={s.heroTextCol}>
-              <Text style={s.heroTitle}>Découvrez{"\n"}des lieux{"\n"}uniques.</Text>
-              <Text style={s.heroSub}>Des spots cachés près de chez toi</Text>
-              <Pressable
-                style={s.heroBtn}
-                onPress={() => router.push("/(tabs)/explore")}
-              >
-                <Text style={s.heroBtnText}>Découvrir</Text>
-                <Octicons name="arrow-right" size={13} color={Colors.primary} />
-              </Pressable>
-            </View>
-            <View style={s.heroIllustration}>
-              <Octicons name="globe" size={64} color="rgba(255,255,255,0.18)" />
-            </View>
-          </View>
-        </View>
-
-        {/* Categories */}
-        <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>Catégories</Text>
-            <Pressable style={s.seeAllBtn} onPress={() => router.push("/categories")}>
-              <Text style={s.seeAllText}>Voir tous</Text>
-              <Octicons name="chevron-right" size={13} color={Colors.primary} />
-            </Pressable>
-          </View>
-
-          <View style={s.catGrid}>
-            <View style={s.catCol}>
-              {HOME_CATEGORIES.filter((_, i) => i % 2 === 0).map((cat) => (
-                <CategoryCard key={cat.label} cat={cat} />
-              ))}
-            </View>
-            <View style={s.catCol}>
-              {HOME_CATEGORIES.filter((_, i) => i % 2 === 1).map((cat) => (
-                <CategoryCard key={cat.label} cat={cat} />
-              ))}
-            </View>
-          </View>
-        </View>
-
-        {/* Feed */}
-        <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>Spots récents</Text>
-          </View>
-
-          {spots === undefined && (
-            <View style={s.centered}>
-              <Text style={s.mutedText}>Chargement…</Text>
+        <View style={{ flex: 1 }}>
+          {expanded ? (
+            <View style={{ paddingTop: insets.top }} />
+          ) : (
+            <View {...panResponder.panHandlers} style={[s.peekBar, { paddingTop: 8 }]}>
+              <View style={s.dragHandle} />
+              <View style={s.peekSearchBar}>
+                <Octicons name="search" size={15} color={Colors.muted} />
+                <Text style={s.peekSearchText}>Rechercher un lieu…</Text>
+              </View>
             </View>
           )}
-          {spots?.length === 0 && (
-            <View style={s.centered}>
-              <Text style={s.emptyTitle}>Aucun spot pour l'instant</Text>
-              <Text style={[s.mutedText, { textAlign: "center" }]}>
-                Sois le premier à partager un lieu incroyable.
+
+          {expanded && <AppHeader showTitle={false} showActions={false} />}
+
+          {/* Filtres catégories — juste sous la recherche, façon AllTrails */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.catPillsRow}
+            style={s.catPillsScroll}
+          >
+            {CATEGORIES.map((cat) => (
+              <CategoryPill key={cat.label} cat={cat} />
+            ))}
+          </ScrollView>
+
+          <ScrollView
+            style={s.scroll}
+            contentContainerStyle={s.scrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={Colors.primary}
+                colors={[Colors.primary]}
+              />
+            }
+          >
+            {/* Dernier spot consulté */}
+            {lastVisitedSpot && (
+              <View style={s.section}>
+                <Text style={s.sectionTitle}>Dernier spot consulté</Text>
+                <LastVisitedCard
+                  spot={lastVisitedSpot}
+                  isFavorited={favSet.has(String(lastVisitedSpot._id))}
+                  onFavoritePress={() => handleFavoritePress(lastVisitedSpot._id)}
+                />
+              </View>
+            )}
+
+            {/* Feed */}
+            <View style={s.section}>
+              <Text style={s.sectionTitle}>
+                {userLocation ? "Près de toi" : "Spots récents"}
               </Text>
-            </View>
-          )}
-          {spots?.map((spot) => (
-            <SpotCard
-              key={spot._id}
-              spot={spot}
-              isFavorited={favSet.has(String(spot._id))}
-              onFavoritePress={() => handleFavoritePress(spot._id)}
-            />
-          ))}
-        </View>
-      </ScrollView>
 
-      <AddToFavoritesSheet
-        visible={sheetSpotId !== null}
-        spotId={sheetSpotId}
-        onClose={() => setSheetSpotId(null)}
-      />
-    </SafeAreaView>
+              {spots === undefined && (
+                <View style={s.centered}>
+                  <Text style={s.mutedText}>Chargement…</Text>
+                </View>
+              )}
+              {spots?.length === 0 && (
+                <View style={s.centered}>
+                  <Text style={s.emptyTitle}>Aucun spot pour l'instant</Text>
+                  <Text style={[s.mutedText, { textAlign: "center" }]}>
+                    Sois le premier à partager un lieu incroyable.
+                  </Text>
+                </View>
+              )}
+              {spots?.map((spot) => (
+                <SpotCard
+                  key={spot._id}
+                  spot={spot}
+                  isFavorited={favSet.has(String(spot._id))}
+                  onFavoritePress={() => handleFavoritePress(spot._id)}
+                />
+              ))}
+            </View>
+          </ScrollView>
+
+          <AddToFavoritesSheet
+            visible={sheetSpotId !== null}
+            spotId={sheetSpotId}
+            onClose={() => setSheetSpotId(null)}
+          />
+        </View>
+
+        <Pressable style={s.viewToggle} onPress={() => snapTo(false)}>
+          <Octicons name="location" size={15} color="#fff" />
+          <Text style={s.viewToggleText}>Carte</Text>
+        </Pressable>
+      </Animated.View>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.primary },
+  screen: { flex: 1, backgroundColor: Colors.background },
   scroll: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { paddingBottom: 110 },
 
-  // ─── Sticky header ──────────────────────────────────────
-  stickyHeader: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 14,
-    gap: 14,
-  },
-
-  // ─── Hero banner (défile) ────────────────────────────────
-  heroBannerWrap: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    marginBottom: 24,
-  },
-
-  heroHeader: {
+  // ─── Toggle liste/carte (façon AllTrails) ─────────────────
+  viewToggle: {
+    position: "absolute",
+    bottom: 20,
+    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 4,
+    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    borderRadius: Radius.card,
+    ...FloatingShadow,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontFamily: Fonts.headingBold,
+  viewToggleText: {
+    fontSize: 14,
+    fontFamily: Fonts.bodySemiBold,
     color: "#fff",
-    letterSpacing: -0.5,
   },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-  },
-  avatarBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-    overflow: "hidden",
-  },
-  avatar: { width: 40, height: 40 },
 
-  // Search bar blanche
-  searchBar: {
+  // ─── Sheet liste par-dessus la carte (façon AllTrails) ────
+  sheetContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: Radius.card,
+    borderTopRightRadius: Radius.card,
+    overflow: "hidden",
+    ...FloatingShadow,
+  },
+  peekBar: {
+    paddingBottom: 10,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    marginVertical: 10,
+  },
+  peekSearchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
+    gap: 8,
+    alignSelf: "stretch",
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  searchPlaceholder: {
+  peekSearchText: {
     fontSize: 14,
     fontFamily: Fonts.body,
     color: Colors.muted,
   },
 
-  heroBanner: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 12,
-  },
-  heroTextCol: {
-    flex: 1,
-    gap: 6,
-  },
-  heroTitle: {
-    fontSize: 26,
-    fontFamily: Fonts.headingBold,
-    color: "#fff",
-    letterSpacing: -0.5,
-    lineHeight: 30,
-  },
-  heroSub: {
-    fontSize: 12,
-    fontFamily: Fonts.body,
-    color: "rgba(255,255,255,0.75)",
-    lineHeight: 17,
-    marginBottom: 6,
-  },
-  heroBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-start",
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 999,
-  },
-  heroBtnText: {
-    fontSize: 13,
-    fontFamily: Fonts.bodySemiBold,
-    color: Colors.primary,
-  },
-  heroIllustration: {
-    width: 90,
-    height: 90,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
+  // ─── Filtres catégories (sous la recherche) ───────────────
+  catPillsScroll: {
+    flexGrow: 0,
   },
 
   // ─── Sections ────────────────────────────────────────────
   section: {
     paddingHorizontal: 16,
+    marginTop: 8,
     marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
   },
   sectionTitle: {
     fontSize: 18,
     fontFamily: Fonts.headingBold,
     color: Colors.text,
     letterSpacing: -0.3,
-  },
-  seeAllBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  seeAllText: {
-    fontSize: 13,
-    fontFamily: Fonts.bodyMedium,
-    color: Colors.primary,
+    marginBottom: 14,
   },
 
-  // ─── Category grid ────────────────────────────────────────
-  catGrid: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  catCol: {
-    flex: 1,
-    gap: 10,
-  },
-  catCard: {
+  // ─── Dernier spot consulté ─────────────────────────────────
+  lastVisited: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
+    gap: 12,
   },
-  catIconWrap: {
+  lastVisitedThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.cardSm,
+    backgroundColor: Colors.surface,
+  },
+  lastVisitedInfo: { flex: 1, gap: 6 },
+  lastVisitedTitle: {
+    fontSize: 15,
+    fontFamily: Fonts.headingBold,
+    color: Colors.text,
+    letterSpacing: -0.2,
+  },
+  lastVisitedHeart: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // ─── Category pills ─────────────────────────────────────────
+  catPillsRow: {
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  catPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: Radius.card,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingRight: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  catPillIcon: {
+    width: 32,
+    height: 32,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
-  catLabel: {
-    flex: 1,
+  catPillLabel: {
     fontSize: 13,
     fontFamily: Fonts.bodyMedium,
     color: Colors.text,
@@ -463,7 +582,7 @@ const s = StyleSheet.create({
     color: Colors.muted,
     fontSize: 14,
     fontFamily: Fonts.body,
-    lineHeight: 21,
+    lineHeight: 20,
   },
   emptyTitle: {
     fontSize: 18,
@@ -471,26 +590,50 @@ const s = StyleSheet.create({
     color: Colors.text,
   },
   card: {
-    borderRadius: 14,
+    borderRadius: Radius.card,
     overflow: "hidden",
-    marginBottom: 16,
+    marginBottom: 20,
+    backgroundColor: Colors.card,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.card,
   },
-  cardImage: { width: "100%", height: 210 },
+  imageWrap: { position: "relative" },
+  cardImage: { width: CARD_WIDTH, height: 220 },
   heartBtn: {
     position: "absolute",
     top: 12,
     right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    width: 38,
+    height: 38,
+    borderRadius: Radius.pill,
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
+    ...FloatingShadow,
   },
-  cardBody: { padding: 14 },
+  dotsRow: {
+    position: "absolute",
+    bottom: 12,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 5,
+    marginBottom: 8,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.5)",
+  },
+  dotActive: {
+    backgroundColor: "#fff",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  cardBody: { padding: 14, paddingTop: 12 },
   tagsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -512,22 +655,20 @@ const s = StyleSheet.create({
     fontSize: 17,
     fontFamily: Fonts.headingBold,
     color: Colors.text,
-    marginBottom: 9,
+    marginBottom: 2,
     lineHeight: 22,
     letterSpacing: -0.2,
+  },
+  cardCity: {
+    fontSize: 13,
+    fontFamily: Fonts.body,
+    color: Colors.textSecondary,
+    marginBottom: 9,
   },
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  starRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  star: { fontSize: 12 },
-  ratingNum: {
-    color: Colors.muted,
-    fontSize: 13,
-    fontFamily: Fonts.bodyMedium,
-    marginLeft: 5,
+    gap: 6,
   },
   reviewCount: {
     color: Colors.muted,

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
 
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius } from "@/constants/theme";
 import { AppHeader } from "@/components/AppHeader";
 import { CATEGORIES } from "./index";
 
@@ -31,8 +31,8 @@ export default function CategoriesScreen() {
                 style={({ pressed }) => [s.catCard, pressed && { opacity: 0.82 }]}
                 onPress={() => router.push(`/category/${encodeURIComponent(cat.label)}`)}
               >
-                <View style={[s.catIconWrap, { backgroundColor: cat.bg }]}>
-                  <Octicons name={cat.icon} size={20} color={cat.color} />
+                <View style={s.catIconWrap}>
+                  <cat.Icon width={20} height={20} color={Colors.primary} />
                 </View>
                 <Text style={s.catLabel} numberOfLines={1}>{cat.label}</Text>
                 <Octicons name="chevron-right" size={13} color={Colors.muted} />
@@ -73,7 +73,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     backgroundColor: CARD_BG,
-    borderRadius: 14,
+    borderRadius: Radius.card,
     paddingVertical: 13,
     paddingHorizontal: 12,
     borderWidth: 1,
@@ -83,6 +83,7 @@ const s = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
+    backgroundColor: Colors.tagBg,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,

@@ -7,28 +7,16 @@ import { Octicons } from "@expo/vector-icons";
 
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius } from "@/constants/theme";
 import { CATEGORIES } from "../(tabs)/index";
+import { StarRating } from "@/components/StarRating";
 
 type SpotCard = Doc<"spots"> & { avgRating: number; reviewCount: number };
-
-function StarRating({ rating }: { rating: number }) {
-  return (
-    <View style={s.starRow}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Text key={i} style={[s.star, { color: i <= Math.round(rating) ? Colors.accent : "#E0DDD8" }]}>
-          ★
-        </Text>
-      ))}
-      <Text style={s.ratingNum}>{rating > 0 ? rating.toFixed(1) : "—"}</Text>
-    </View>
-  );
-}
 
 export default function CategoryScreen() {
   const { tag } = useLocalSearchParams<{ tag: string }>();
   const decodedTag = decodeURIComponent(tag ?? "");
-  const spots = useQuery(api.spots.list);
+  const spots = useQuery(api.spots.list, {});
 
   const cat = CATEGORIES.find((c) => c.label === decodedTag);
   const filtered = spots?.filter((spot) => spot.tags.includes(decodedTag)) ?? [];
@@ -47,8 +35,8 @@ export default function CategoryScreen() {
         {/* Titre de la catégorie */}
         <View style={s.catHeader}>
           {cat && (
-            <View style={[s.catIconWrap, { backgroundColor: cat.bg }]}>
-              <Octicons name={cat.icon} size={20} color={cat.color} />
+            <View style={s.catIconWrap}>
+              <cat.Icon width={20} height={20} color={Colors.primary} />
             </View>
           )}
           <View>
@@ -98,7 +86,7 @@ export default function CategoryScreen() {
               </View>
               <Text style={s.cardTitle} numberOfLines={2}>{spot.title}</Text>
               <View style={s.cardFooter}>
-                <StarRating rating={(spot as SpotCard).avgRating} />
+                <StarRating rating={(spot as SpotCard).avgRating} showValue />
                 <Text style={s.reviewCount}>{(spot as SpotCard).reviewCount} avis</Text>
               </View>
             </View>
@@ -128,6 +116,7 @@ const s = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
+    backgroundColor: Colors.tagBg,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -153,7 +142,7 @@ const s = StyleSheet.create({
     color: Colors.muted,
     fontSize: 14,
     fontFamily: Fonts.body,
-    lineHeight: 21,
+    lineHeight: 20,
   },
   emptyTitle: {
     fontSize: 18,
@@ -205,7 +194,7 @@ const s = StyleSheet.create({
   },
 
   card: {
-    borderRadius: 14,
+    borderRadius: Radius.card,
     overflow: "hidden",
     marginBottom: 16,
     borderWidth: 1,
@@ -231,8 +220,5 @@ const s = StyleSheet.create({
     letterSpacing: -0.2,
   },
   cardFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  starRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  star: { fontSize: 12 },
-  ratingNum: { color: Colors.muted, fontSize: 13, fontFamily: Fonts.bodyMedium, marginLeft: 5 },
   reviewCount: { color: Colors.muted, fontSize: 13, fontFamily: Fonts.body },
 });

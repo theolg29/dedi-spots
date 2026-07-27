@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius } from "@/constants/theme";
 import { api } from "@/convex/_generated/api";
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
@@ -356,7 +356,7 @@ export default function SettingsScreen() {
                     )}
                     {(usernameStatus === "taken" ||
                       usernameStatus === "invalid") && (
-                      <Octicons name="x-circle" size={17} color="#D94F4F" />
+                      <Octicons name="x-circle" size={17} color={Colors.danger} />
                     )}
                   </View>
                 </View>
@@ -372,7 +372,7 @@ export default function SettingsScreen() {
               </Text>
             )}
             {editing && usernameStatus === "taken" && (
-              <Text style={[s.usernameHint, { color: "#D94F4F" }]}>
+              <Text style={[s.usernameHint, { color: Colors.danger }]}>
                 Ce pseudo est déjà pris.
               </Text>
             )}
@@ -487,7 +487,7 @@ const s = StyleSheet.create({
   backIconWrap: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: Radius.pill,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -562,7 +562,7 @@ const s = StyleSheet.create({
   card: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 14,
+    borderRadius: Radius.card,
     overflow: "hidden",
     backgroundColor: Colors.background,
   },
@@ -631,6 +631,6 @@ const s = StyleSheet.create({
   deleteText: {
     fontSize: 14,
     fontFamily: Fonts.bodyMedium,
-    color: "#E53E3E",
+    color: Colors.danger,
   },
 });

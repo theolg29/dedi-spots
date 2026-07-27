@@ -20,13 +20,13 @@ import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors, Fonts, Radius } from "@/constants/theme";
 import { router } from "expo-router";
 import { LocationPickerModal } from "@/components/LocationPickerModal";
 
 const TAGS = [
   "Plage", "Panorama", "Forêt", "Montagne", "Urbain",
-  "Caché", "Coucher de soleil", "Cascade", "Lac", "Falaise",
+  "Coucher de soleil", "Cascade", "Lac",
   "Patrimoine", "Nature",
 ];
 
@@ -46,6 +46,7 @@ export default function CreateScreen() {
   const [photos, setPhotos] = useState<PhotoAsset[]>([]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationAddress, setLocationAddress] = useState("");
+  const [locationCity, setLocationCity] = useState<string | undefined>(undefined);
   const [mapVisible, setMapVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
@@ -103,6 +104,7 @@ export default function CreateScreen() {
     setPhotos([]);
     setLocation(null);
     setLocationAddress("");
+    setLocationCity(undefined);
     setErrors({});
     setUploadProgress(null);
   }, []);
@@ -151,6 +153,7 @@ export default function CreateScreen() {
         description: description.trim(),
         latitude: location!.latitude,
         longitude: location!.longitude,
+        city: locationCity,
         photos: storageIds,
         tags: selectedTags,
       });
@@ -200,8 +203,8 @@ export default function CreateScreen() {
   const canSubmit = title.trim().length > 0 && description.trim().length > 0 && !!location && !submitting;
 
   // Character count color helpers
-  const titleCountColor = title.length > 54 ? Colors.accent : title.length > 48 ? "#E8A838" : Colors.muted;
-  const descCountColor = description.length > 475 ? Colors.accent : description.length > 400 ? "#E8A838" : Colors.muted;
+  const titleCountColor = title.length > 54 ? Colors.danger : title.length > 48 ? Colors.warning : Colors.muted;
+  const descCountColor = description.length > 475 ? Colors.danger : description.length > 400 ? Colors.warning : Colors.muted;
 
   return (
     <SafeAreaView edges={["top"]} style={s.screen}>
@@ -363,7 +366,7 @@ export default function CreateScreen() {
             <Octicons
               name="location"
               size={18}
-              color={location ? "#fff" : errors.location ? Colors.accent : Colors.primary}
+              color={location ? "#fff" : errors.location ? Colors.danger : Colors.primary}
             />
             <Text style={[s.locationText, !!location && s.locationTextDone]} numberOfLines={1}>
               {locationAddress || "Choisir un emplacement"}
@@ -381,9 +384,10 @@ export default function CreateScreen() {
           visible={mapVisible}
           onClose={() => setMapVisible(false)}
           initialCoords={location}
-          onConfirm={(coords, addr) => {
+          onConfirm={(coords, addr, city) => {
             setLocation(coords);
             setLocationAddress(addr);
+            setLocationCity(city);
             setErrors((e) => ({ ...e, location: false }));
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           }}
@@ -488,7 +492,7 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   required: {
-    color: Colors.accent,
+    color: Colors.danger,
   },
   hint: {
     fontSize: 11,
@@ -500,7 +504,7 @@ const s = StyleSheet.create({
   errorText: {
     fontSize: 12,
     fontFamily: Fonts.bodyMedium,
-    color: Colors.accent,
+    color: Colors.danger,
     marginTop: 6,
   },
   input: {
@@ -512,19 +516,19 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   inputError: {
-    borderColor: Colors.accent,
-    borderBottomColor: Colors.accent,
+    borderColor: Colors.danger,
+    borderBottomColor: Colors.danger,
   },
   textarea: {
     height: 110,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: Radius.card,
     paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: 12,
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 20,
   },
 
   // Photos
@@ -541,7 +545,7 @@ const s = StyleSheet.create({
   photoArea: {
     marginHorizontal: 20,
     height: 200,
-    borderRadius: 16,
+    borderRadius: Radius.card,
     borderWidth: 1.5,
     borderColor: Colors.border,
     borderStyle: "dashed",
@@ -570,7 +574,7 @@ const s = StyleSheet.create({
   photoThumb: {
     width: 150,
     height: 176,
-    borderRadius: 12,
+    borderRadius: Radius.cardSm,
     overflow: "hidden",
   },
   photoImg: {
@@ -605,7 +609,7 @@ const s = StyleSheet.create({
   photoAddMore: {
     width: 60,
     height: 176,
-    borderRadius: 12,
+    borderRadius: Radius.cardSm,
     borderWidth: 1.5,
     borderColor: Colors.border,
     borderStyle: "dashed",
@@ -659,7 +663,7 @@ const s = StyleSheet.create({
     borderColor: Colors.primary,
   },
   locationBtnError: {
-    borderColor: Colors.accent,
+    borderColor: Colors.danger,
   },
   locationText: {
     flex: 1,
@@ -709,7 +713,7 @@ const s = StyleSheet.create({
   },
   successCard: {
     backgroundColor: Colors.card,
-    borderRadius: 24,
+    borderRadius: Radius.card,
     paddingHorizontal: 40,
     paddingVertical: 32,
     alignItems: "center",

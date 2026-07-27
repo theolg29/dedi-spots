@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { QueryCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 async function resolvePhoto(ctx: QueryCtx, photoId: string): Promise<string | null> {
   if (photoId.startsWith("http")) return photoId;
@@ -40,6 +41,16 @@ export const addToList = mutation({
         isPrivate: false,
         createdAt: Date.now(),
       });
+
+      const spot = await ctx.db.get(args.spotId);
+      if (spot) {
+        await ctx.runMutation(internal.notifications.create, {
+          userId: spot.creatorId,
+          actorId: userId,
+          type: "favorite",
+          spotId: args.spotId,
+        });
+      }
     }
   },
 });
@@ -145,6 +156,94 @@ export const getDefaultFavoriteSpots = query({
         };
       })
     ).then((results) => results.filter((r): r is NonNullable<typeof r> => r !== null));
+  },
+});
+
+// Spots inside a specific list (for the list detail screen)
+export const getListSpots = query({
+  args: { listId: v.id("favoriteLists") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    const list = await ctx.db.get(args.listId);
+    if (!list || list.userId !== userId) return null;
+
+    const favs = await ctx.db
+      .query("favorites")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const listFavs = favs.filter((f) => f.listId === args.listId);
+
+    const spots = await Promise.all(
+      listFavs.map(async (fav) => {
+        const spot = await ctx.db.get(fav.spotId);
+        if (!spot) return null;
+
+        const photo = spot.photos[0] ? await resolvePhoto(ctx, spot.photos[0]) : null;
+
+        const reviews = await ctx.db
+          .query("reviews")
+          .withIndex("by_spot", (q) => q.eq("spotId", spot._id))
+          .take(100);
+        const avgRating =
+          reviews.length > 0
+            ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10
+            : 0;
+
+        return {
+          _id: spot._id,
+          title: spot.title,
+          tags: spot.tags,
+          photo,
+          avgRating,
+          reviewCount: reviews.length,
+        };
+      })
+    );
+
+    return {
+      name: list.name,
+      spots: spots.filter((s): s is NonNullable<typeof s> => s !== null),
+    };
+  },
+});
+
+// Delete a list — spots inside fall back to the default "Favoris" bucket
+// Rename a list
+export const renameList = mutation({
+  args: { listId: v.id("favoriteLists"), name: v.string() },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Non authentifié");
+
+    const list = await ctx.db.get(args.listId);
+    if (!list || list.userId !== userId) throw new Error("Liste introuvable");
+
+    await ctx.db.patch(args.listId, { name: args.name.trim() });
+  },
+});
+
+export const deleteList = mutation({
+  args: { listId: v.id("favoriteLists") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Non authentifié");
+
+    const list = await ctx.db.get(args.listId);
+    if (!list || list.userId !== userId) throw new Error("Liste introuvable");
+
+    const favs = await ctx.db
+      .query("favorites")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    await Promise.all(
+      favs
+        .filter((f) => f.listId === args.listId)
+        .map((f) => ctx.db.patch(f._id, { listId: undefined }))
+    );
+
+    await ctx.db.delete(args.listId);
   },
 });
 
