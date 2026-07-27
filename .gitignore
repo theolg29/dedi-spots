@@ -48,3 +48,6 @@ app-example
 # Editor / AI tooling
 .omc/
 .claude/
+
+# Build artifacts
+*.apk
